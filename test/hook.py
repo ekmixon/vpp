@@ -43,8 +43,7 @@ class Hook:
 
         _args = ', '.join("{!s}={!r}".format(key, _friendly_format(val)) for
                           (key, val) in api_args.items())
-        self.logger.debug("API: %s (%s)" %
-                          (api_name, _args), extra={'color': RED})
+        self.logger.debug(f"API: {api_name} ({_args})", extra={'color': RED})
 
     def after_api(self, api_name, api_args):
         """
@@ -62,7 +61,7 @@ class Hook:
 
         @param cli: CLI string
         """
-        self.logger.debug("CLI: %s" % (cli), extra={'color': RED})
+        self.logger.debug(f"CLI: {cli}", extra={'color': RED})
 
     def after_cli(self, cli):
         """
@@ -114,9 +113,6 @@ class PollHook(Hook):
         if self.test.vpp.returncode is not None:
             self.test.vpp_dead = True
             raise framework.VppDiedError(rv=self.test.vpp.returncode)
-            core_path = get_core_path(self.test.tempdir)
-            if os.path.isfile(core_path):
-                self.on_crash(core_path)
 
     def before_api(self, api_name, api_args):
         """
@@ -178,11 +174,9 @@ class StepHook(PollHook):
 
     def user_input(self):
         print('number\tfunction\tfile\tcode')
-        counter = 0
         stack = traceback.extract_stack()
-        for e in stack:
+        for counter, e in enumerate(stack):
             print('%02d.\t%s\t%s:%d\t[%s]' % (counter, e[2], e[0], e[1], e[3]))
-            counter += 1
         print(single_line_delim)
         print("You may enter a number of stack frame chosen from above")
         print("Calls in/below that stack frame will be not be stepped anymore")
@@ -210,10 +204,10 @@ class StepHook(PollHook):
     def before_cli(self, cli):
         """ Wait for ENTER before executing CLI """
         if self.skip():
-            print("Skip pause before executing CLI: %s" % cli)
+            print(f"Skip pause before executing CLI: {cli}")
         else:
             print(double_line_delim)
-            print("Test paused before executing CLI: %s" % cli)
+            print(f"Test paused before executing CLI: {cli}")
             print(single_line_delim)
             self.user_input()
         super(StepHook, self).before_cli(cli)
@@ -221,12 +215,10 @@ class StepHook(PollHook):
     def before_api(self, api_name, api_args):
         """ Wait for ENTER before executing API """
         if self.skip():
-            print("Skip pause before executing API: %s (%s)"
-                  % (api_name, api_args))
+            print(f"Skip pause before executing API: {api_name} ({api_args})")
         else:
             print(double_line_delim)
-            print("Test paused before executing API: %s (%s)"
-                  % (api_name, api_args))
+            print(f"Test paused before executing API: {api_name} ({api_args})")
             print(single_line_delim)
             self.user_input()
         super(StepHook, self).before_api(api_name, api_args)

@@ -19,48 +19,47 @@ r = p.parse_args()
 with open(r.input, 'r') as fp:
     objects = json.load(fp)
 
-c = open(r.output, 'w')
-
-c.write ("""
+with open(r.output, 'w') as c:
+    c.write ("""
 #include <perfmon/perfmon_intel.h>
 
 static perfmon_intel_pmc_cpu_model_t cpu_model_table[] = {
 """)
 
-for v in r.model:
-    if "," in v:
-        (m, s)  = v.split(",")
-        m = int(m, 0)
-        s = int(s, 0)
-        c.write ("  {}0x{:02X}, 0x{:02X}, 1{},\n".format("{", m, s, "}"))
-    else:
-        m = int(v, 0)
-        c.write ("  {}0x{:02X}, 0x00, 0{},\n".format("{", m, "}"))
-c.write ("""
+    for v in r.model:
+        if "," in v:
+            (m, s)  = v.split(",")
+            m = int(m, 0)
+            s = int(s, 0)
+            c.write ("  {}0x{:02X}, 0x{:02X}, 1{},\n".format("{", m, s, "}"))
+        else:
+            m = int(v, 0)
+            c.write ("  {}0x{:02X}, 0x00, 0{},\n".format("{", m, "}"))
+    c.write ("""
 };
 
 static perfmon_intel_pmc_event_t event_table[] = {
 """)
 
-for obj in objects:
-    MSRIndex = obj["MSRIndex"]
-    if MSRIndex != "0":
-      continue
+    for obj in objects:
+        MSRIndex = obj["MSRIndex"]
+        if MSRIndex != "0":
+          continue
 
-    EventCode = obj["EventCode"]
-    UMask = obj["UMask"]
-    EventName = obj["EventName"].lower()
-    if "," in EventCode:
-        continue
+        EventCode = obj["EventCode"]
+        UMask = obj["UMask"]
+        EventName = obj["EventName"].lower()
+        if "," in EventCode:
+            continue
 
-    c.write ("  {\n")
-    c.write ("   .event_code = {}{}{},\n".format("{", EventCode, "}"))
-    c.write ("   .umask = {},\n".format(UMask))
-    c.write ("   .event_name = \"{}\",\n".format(EventName))
-    c.write ("   },\n")
+        c.write ("  {\n")
+        c.write ("   .event_code = {}{}{},\n".format("{", EventCode, "}"))
+        c.write(f"   .umask = {UMask},\n")
+        c.write(f'   .event_name = \"{EventName}\",\n')
+        c.write ("   },\n")
 
 
-c.write ("""  {
+    c.write ("""  {
    .event_name = 0,
    },
 };
@@ -68,5 +67,3 @@ c.write ("""  {
 PERFMON_REGISTER_INTEL_PMC (cpu_model_table, event_table);
 
 """)
-
-c.close()

@@ -54,11 +54,12 @@ class CpuUtils(object):
 
         cpu_mems = [item[-4:] for item in cpu_info]
         cpu_mems_len = len(cpu_mems) // CpuUtils.NR_OF_THREADS
-        count = 0
-        for cpu_mem in cpu_mems[:cpu_mems_len]:
-            if cpu_mem in cpu_mems[cpu_mems_len:]:
-                count += 1
-        return bool(count == cpu_mems_len)
+        count = sum(
+            cpu_mem in cpu_mems[cpu_mems_len:]
+            for cpu_mem in cpu_mems[:cpu_mems_len]
+        )
+
+        return count == cpu_mems_len
 
     @staticmethod
     def get_cpu_layout_from_all_nodes(nodes):
@@ -69,22 +70,20 @@ class CpuUtils(object):
         :type nodes: dict
         :raises RuntimeError: If the ssh command "lscpu -p" fails.
         """
+        cmd = "lscpu -p"
         for node in nodes.values():
-            cmd = "lscpu -p"
             ret, stdout, stderr = VPPUtil.exec_command(cmd)
             #           parsing of "lscpu -p" output:
             #           # CPU,Core,Socket,Node,,L1d,L1i,L2,L3
             #           0,0,0,0,,0,0,0,0
             #           1,1,0,0,,1,1,1,0
             if ret != 0:
-                raise RuntimeError(
-                    "Failed to execute ssh command, ret: {} err: {}".format(
-                        ret, stderr))
-            node['cpuinfo'] = list()
-            for line in stdout.split("\n"):
-                if line != '' and line[0] != "#":
-                    node['cpuinfo'].append([CpuUtils.__str2int(x) for x in
-                                            line.split(",")])
+                raise RuntimeError(f"Failed to execute ssh command, ret: {ret} err: {stderr}")
+            node['cpuinfo'] = [
+                [CpuUtils.__str2int(x) for x in line.split(",")]
+                for line in stdout.split("\n")
+                if line != '' and line[0] != "#"
+            ]
 
     @staticmethod
     def cpu_node_count(node):
@@ -127,14 +126,7 @@ class CpuUtils(object):
         if not smt_enabled and smt_used:
             raise RuntimeError("SMT is not enabled.")
 
-        cpu_list = []
-        for cpu in cpu_info:
-            if cpu[3] == cpu_node:
-                cpu_list.append(cpu[0])
-
-        if not smt_enabled or smt_enabled and smt_used:
-            pass
-
+        cpu_list = [cpu[0] for cpu in cpu_info if cpu[3] == cpu_node]
         if smt_enabled and not smt_used:
             cpu_list_len = len(cpu_list)
             cpu_list = cpu_list[:cpu_list_len // CpuUtils.NR_OF_THREADS]
@@ -173,12 +165,11 @@ class CpuUtils(object):
         if smt_used:
             cpu_list_0 = cpu_list[:cpu_list_len // CpuUtils.NR_OF_THREADS]
             cpu_list_1 = cpu_list[cpu_list_len // CpuUtils.NR_OF_THREADS:]
-            cpu_list = [cpu for cpu in cpu_list_0[skip_cnt:skip_cnt + cpu_cnt]]
-            cpu_list_ex = [cpu for cpu in
-                           cpu_list_1[skip_cnt:skip_cnt + cpu_cnt]]
+            cpu_list = list(cpu_list_0[skip_cnt:skip_cnt + cpu_cnt])
+            cpu_list_ex = list(cpu_list_1[skip_cnt:skip_cnt + cpu_cnt])
             cpu_list.extend(cpu_list_ex)
         else:
-            cpu_list = [cpu for cpu in cpu_list[skip_cnt:skip_cnt + cpu_cnt]]
+            cpu_list = list(cpu_list[skip_cnt:skip_cnt + cpu_cnt])
 
         return cpu_list
 
@@ -234,18 +225,13 @@ class CpuUtils(object):
                                                        skip_cnt=skip_cnt,
                                                        cpu_cnt=cpu_cnt,
                                                        smt_used=smt_used)
-        if smt_used:
-            cpu_list_len = len(cpu_list)
-            cpu_list_0 = cpu_list[:cpu_list_len // CpuUtils.NR_OF_THREADS]
-            cpu_list_1 = cpu_list[cpu_list_len // CpuUtils.NR_OF_THREADS:]
-            cpu_range = "{}{}{},{}{}{}".format(cpu_list_0[0], sep,
-                                               cpu_list_0[-1],
-                                               cpu_list_1[0], sep,
-                                               cpu_list_1[-1])
-        else:
-            cpu_range = "{}{}{}".format(cpu_list[0], sep, cpu_list[-1])
+        if not smt_used:
+            return f"{cpu_list[0]}{sep}{cpu_list[-1]}"
 
-        return cpu_range
+        cpu_list_len = len(cpu_list)
+        cpu_list_0 = cpu_list[:cpu_list_len // CpuUtils.NR_OF_THREADS]
+        cpu_list_1 = cpu_list[cpu_list_len // CpuUtils.NR_OF_THREADS:]
+        return f"{cpu_list_0[0]}{sep}{cpu_list_0[-1]},{cpu_list_1[0]}{sep}{cpu_list_1[-1]}"
 
     @staticmethod
     def get_cpu_info_per_node(node):
@@ -260,8 +246,7 @@ class CpuUtils(object):
         cmd = "lscpu"
         ret, stdout, stderr = VPPUtil.exec_command(cmd)
         if ret != 0:
-            raise RuntimeError("lscpu command failed on node {} {}."
-                               .format(node['host'], stderr))
+            raise RuntimeError(f"lscpu command failed on node {node['host']} {stderr}.")
 
         cpuinfo = {}
         lines = stdout.split('\n')
@@ -273,8 +258,7 @@ class CpuUtils(object):
         cmd = "cat /proc/*/task/*/stat | awk '{print $1" "$2" "$39}'"
         ret, stdout, stderr = VPPUtil.exec_command(cmd)
         if ret != 0:
-            raise RuntimeError("cat command failed on node {} {}."
-                               .format(node['host'], stderr))
+            raise RuntimeError(f"cat command failed on node {node['host']} {stderr}.")
 
         vpp_processes = {}
         vpp_lines = re.findall(r'\w+\(vpp_\w+\)\w+', stdout)

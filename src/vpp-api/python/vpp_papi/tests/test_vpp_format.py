@@ -28,7 +28,7 @@ from parameterized import parameterized
 ip4_addr = '1.2.3.4'
 ip4_addrn = b'\x01\x02\x03\x04'
 ip4_prefix_len = 32
-ip4_prefix = '%s/%s' % (ip4_addr, ip4_prefix_len)
+ip4_prefix = f'{ip4_addr}/{ip4_prefix_len}'
 ipv4_network = ipaddress.IPv4Network(text_type(ip4_prefix))
 ip4_addr_format_vl_api_address_t = {'un': {'ip4': b'\x01\x02\x03\x04'},
                                     'af': 0}
@@ -43,7 +43,7 @@ ip6_addr = 'dead::'
 ip6_addrn = b'\xde\xad\x00\x00\x00\x00\x00\x00' \
             b'\x00\x00\x00\x00\x00\x00\x00\x00'
 ip6_prefix_len = 127
-ip6_prefix = '%s/%s' % (ip6_addr, ip6_prefix_len)
+ip6_prefix = f'{ip6_addr}/{ip6_prefix_len}'
 ipv6_network = ipaddress.IPv6Network(text_type(ip6_prefix))
 ip6_addr_format_vl_api_address_t = {'un': {'ip6': b'\xde\xad\x00\x00'
                                                   b'\x00\x00\x00\x00'

@@ -181,9 +181,7 @@ conversion_table = {
 def unformat_api_address_t(o):
     if o.af == 1:
         return ipaddress.IPv6Address(o.un.ip6)
-    if o.af == 0:
-        return ipaddress.IPv4Address(o.un.ip4)
-    return None
+    return ipaddress.IPv4Address(o.un.ip4) if o.af == 0 else None
 
 
 def unformat_api_prefix_t(o):
@@ -192,12 +190,6 @@ def unformat_api_prefix_t(o):
     if o.address.af == 0:
         return ipaddress.IPv4Network((o.address.un.ip4, o.len), False)
     return None
-
-    if isinstance(o.address, ipaddress.IPv4Address):
-        return ipaddress.IPv4Network((o.address, o.len), False)
-    if isinstance(o.address, ipaddress.IPv6Address):
-        return ipaddress.IPv6Network((o.address, o.len), False)
-    raise ValueError('Unknown instance {}', format(o))
 
 
 def unformat_api_address_with_prefix_t(o):

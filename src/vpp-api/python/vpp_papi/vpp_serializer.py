@@ -77,9 +77,8 @@ class Packer:
                 return c._get_packer_with_options(f_type, options)
             except IndexError:
                 raise VPPSerializerValueError(
-                    "Options not supported for {}{} ({})".
-                    format(f_type, types[f_type].__class__,
-                           options))
+                    f"Options not supported for {f_type}{types[f_type].__class__} ({options})"
+                )
 
 
 class BaseTypes(Packer):
@@ -99,8 +98,8 @@ class BaseTypes(Packer):
                       'bool': '>?',
                       'header': '>HI'}
 
-        if elements > 0 and (type == 'u8' or type == 'string'):
-            self.packer = struct.Struct('>%ss' % elements)
+        if elements > 0 and type in ['u8', 'string']:
+            self.packer = struct.Struct(f'>{elements}s')
         else:
             self.packer = struct.Struct(base_types[type])
         self.size = self.packer.size
@@ -122,9 +121,7 @@ class BaseTypes(Packer):
         return BaseTypes(f_type, options=options)
 
     def __repr__(self):
-        return "BaseTypes(type=%s, elements=%s, options=%s)" % (self._type,
-                                                                self._elements,
-                                                                self.options)
+        return f"BaseTypes(type={self._type}, elements={self._elements}, options={self.options})"
 
 
 class String(Packer):
@@ -134,11 +131,11 @@ class String(Packer):
         self.size = 1
         self.length_field_packer = BaseTypes('u32')
         self.limit = options['limit'] if 'limit' in options else num
-        self.fixed = True if num else False
+        self.fixed = bool(num)
         if self.fixed and not self.limit:
             raise VPPSerializerValueError(
-                "Invalid combination for: {}, {} fixed:{} limit:{}".
-                format(name, options, self.fixed, self.limit))
+                f"Invalid combination for: {name}, {options} fixed:{self.fixed} limit:{self.limit}"
+            )
 
     def pack(self, list, kwargs=None):
         if not list:
@@ -147,8 +144,9 @@ class String(Packer):
             return self.length_field_packer.pack(0) + b""
         if self.limit and len(list) > self.limit - 1:
             raise VPPSerializerValueError(
-                "Invalid argument length for: {}, {} maximum {}".
-                format(list, len(list), self.limit - 1))
+                f"Invalid argument length for: {list}, {len(list)} maximum {self.limit - 1}"
+            )
+
         if self.fixed:
             return list.encode('ascii').ljust(self.limit, b'\x00')
         return self.length_field_packer.pack(len(list)) + list.encode('ascii')
@@ -206,29 +204,25 @@ class FixedList_u8(Packer):
 
         if len(data) > self.num:
             raise VPPSerializerValueError(
-                'Fixed list length error for "{}", got: {}'
-                ' expected: {}'
-                .format(self.name, len(data), self.num))
+                f'Fixed list length error for "{self.name}", got: {len(data)} expected: {self.num}'
+            )
+
 
         try:
             return self.packer.pack(data)
         except struct.error:
-            raise VPPSerializerValueError(
-                'Packing failed for "{}" {}'
-                .format(self.name, kwargs))
+            raise VPPSerializerValueError(f'Packing failed for "{self.name}" {kwargs}')
 
     def unpack(self, data, offset=0, result=None, ntc=False):
         if len(data[offset:]) < self.num:
             raise VPPSerializerValueError(
-                'Invalid array length for "{}" got {}'
-                ' expected {}'
-                .format(self.name, len(data[offset:]), self.num))
+                f'Invalid array length for "{self.name}" got {len(data[offset:])} expected {self.num}'
+            )
+
         return self.packer.unpack(data, offset)
 
     def __repr__(self):
-        return "FixedList_u8(name=%s, field_type=%s, num=%s)" % (
-            self.name, self.field_type, self.num
-        )
+        return f"FixedList_u8(name={self.name}, field_type={self.field_type}, num={self.num})"
 
 
 class FixedList(Packer):
@@ -242,8 +236,9 @@ class FixedList(Packer):
     def pack(self, list, kwargs):
         if len(list) != self.num:
             raise VPPSerializerValueError(
-                'Fixed list length error, got: {} expected: {}'
-                .format(len(list), self.num))
+                f'Fixed list length error, got: {len(list)} expected: {self.num}'
+            )
+
         b = bytes()
         for e in list:
             b += self.packer.pack(e)
@@ -253,7 +248,7 @@ class FixedList(Packer):
         # Return a list of arguments
         result = []
         total = 0
-        for e in range(self.num):
+        for _ in range(self.num):
             x, size = self.packer.unpack(data, offset, ntc=ntc)
             result.append(x)
             offset += size
@@ -261,8 +256,7 @@ class FixedList(Packer):
         return result, total
 
     def __repr__(self):
-        return "FixedList(name=%s, field_type=%s, num=%s)" % (
-            self.name, self.field_type, self.num)
+        return f"FixedList(name={self.name}, field_type={self.field_type}, num={self.num})"
 
 
 class VLAList(Packer):
@@ -279,15 +273,13 @@ class VLAList(Packer):
             return b""
         if len(lst) != kwargs[self.length_field]:
             raise VPPSerializerValueError(
-                'Variable length error, got: {} expected: {}'
-                .format(len(lst), kwargs[self.length_field]))
+                f'Variable length error, got: {len(lst)} expected: {kwargs[self.length_field]}'
+            )
+
 
         # u8 array
         if self.packer.size == 1:
-            if isinstance(lst, list):
-                return b''.join(lst)
-            return bytes(lst)
-
+            return b''.join(lst) if isinstance(lst, list) else bytes(lst)
         b = bytes()
         for e in lst:
             b += self.packer.pack(e)
@@ -305,7 +297,7 @@ class VLAList(Packer):
             return p.unpack(data, offset, ntc=ntc)
 
         r = []
-        for e in range(result[self.index]):
+        for _ in range(result[self.index]):
             x, size = self.packer.unpack(data, offset, ntc=ntc)
             r.append(x)
             offset += size
@@ -343,7 +335,7 @@ class VLAList_legacy(Packer):
                 'Legacy Variable Length Array length mismatch.')
         elements = int((len(data) - offset) / self.packer.size)
         r = []
-        for e in range(elements):
+        for _ in range(elements):
             x, size = self.packer.unpack(data, offset, ntc=ntc)
             r.append(x)
             offset += self.packer.size
@@ -351,9 +343,7 @@ class VLAList_legacy(Packer):
         return r, total
 
     def __repr__(self):
-        return "VLAList_legacy(name=%s, field_type=%s)" % (
-            self.name, self.field_type
-        )
+        return f"VLAList_legacy(name={self.name}, field_type={self.field_type})"
 
 
 # Will change to IntEnum after 21.04 release
@@ -403,9 +393,7 @@ class VPPEnumType(Packer):
         return cls(f_type, types[f_type].msgdef, options=options)
 
     def __repr__(self):
-        return "%s(name=%s, msgdef=%s, options=%s)" % (
-            self.__class__.__name__, self.name, self.msgdef, self.options
-        )
+        return f"{self.__class__.__name__}(name={self.name}, msgdef={self.msgdef}, options={self.options})"
 
 
 class VPPEnumFlagType(VPPEnumType):
@@ -429,9 +417,8 @@ class VPPUnionType(Packer):
                 continue
             f_type, f_name = f
             if f_type not in types:
-                logger.debug('Unknown union type {}'.format(f_type))
-                raise VPPSerializerValueError(
-                    'Unknown message type {}'.format(f_type))
+                logger.debug(f'Unknown union type {f_type}')
+                raise VPPSerializerValueError(f'Unknown message type {f_type}')
             fields.append(f_name)
             size = types[f_type].size
             self.packers[f_name] = types[f_type]
@@ -448,7 +435,7 @@ class VPPUnionType(Packer):
             return b'\x00' * self.size
 
         for k, v in data.items():
-            logger.debug("Key: {} Value: {}".format(k, v))
+            logger.debug(f"Key: {k} Value: {v}")
             b = self.packers[k].pack(v, kwargs)
             break
         r = bytearray(self.size)
@@ -475,7 +462,7 @@ class VPPTypeAlias(Packer):
         self.msgdef = msgdef
         t = vpp_get_type(msgdef['type'])
         if not t:
-            raise ValueError('No such type: {}'.format(msgdef['type']))
+            raise ValueError(f"No such type: {msgdef['type']}")
         if 'length' in msgdef:
             if msgdef['length'] == 0:
                 raise ValueError()
@@ -524,8 +511,7 @@ class VPPTypeAlias(Packer):
         return t, size
 
     def __repr__(self):
-        return "VPPTypeAlias(name=%s, msgdef=%s, options=%s)" % (
-            self.name, self.msgdef, self.options)
+        return f"VPPTypeAlias(name={self.name}, msgdef={self.msgdef}, options={self.options})"
 
 
 class VPPType(Packer):
@@ -538,7 +524,7 @@ class VPPType(Packer):
         self.fieldtypes = []
         self.field_by_name = {}
         size = 0
-        for i, f in enumerate(msgdef):
+        for f in msgdef:
             if type(f) is dict and 'crc' in f:
                 self.crc = f['crc']
                 continue
@@ -547,9 +533,8 @@ class VPPType(Packer):
             self.field_by_name[f_name] = None
             self.fieldtypes.append(f_type)
             if f_type not in types:
-                logger.debug('Unknown type {}'.format(f_type))
-                raise VPPSerializerValueError(
-                    'Unknown message type {}'.format(f_type))
+                logger.debug(f'Unknown type {f_type}')
+                raise VPPSerializerValueError(f'Unknown message type {f_type}')
 
             fieldlen = len(f)
             options = [x for x in f if type(x) is dict]
@@ -558,40 +543,38 @@ class VPPType(Packer):
                 fieldlen -= 1
             else:
                 self.options = {}
-            if fieldlen == 3:  # list
+            if fieldlen == 3:
                 list_elements = f[2]
                 if list_elements == 0:
-                    if f_type == 'string':
-                        p = String(f_name, 0, self.options)
-                    else:
-                        p = VLAList_legacy(f_name, f_type)
-                    self.packers.append(p)
+                    p = (
+                        String(f_name, 0, self.options)
+                        if f_type == 'string'
+                        else VLAList_legacy(f_name, f_type)
+                    )
+
                 elif f_type == 'u8':
                     p = FixedList_u8(f_name, f_type, list_elements)
-                    self.packers.append(p)
                     size += p.size
                 elif f_type == 'string':
                     p = String(f_name, list_elements, self.options)
-                    self.packers.append(p)
                     size += p.size
                 else:
                     p = FixedList(f_name, f_type, list_elements)
-                    self.packers.append(p)
                     size += p.size
-            elif fieldlen == 4:  # Variable length list
+            elif fieldlen == 4:
                 length_index = self.fields.index(f[3])
                 p = VLAList(f_name, f_type, f[3], length_index)
-                self.packers.append(p)
             else:
                 # default support for types that decay to basetype
-                if 'default' in self.options:
-                    p = self.get_packer_with_options(f_type, self.options)
-                else:
-                    p = types[f_type]
+                p = (
+                    self.get_packer_with_options(f_type, self.options)
+                    if 'default' in self.options
+                    else types[f_type]
+                )
 
-                self.packers.append(p)
                 size += p.size
 
+            self.packers.append(p)
         self.size = size
         self.tuple = collections.namedtuple(name, self.fields, rename=True)
         types[name] = self
@@ -609,8 +592,9 @@ class VPPType(Packer):
         for i, a in enumerate(self.fields):
             if data and type(data) is not dict and a not in data:
                 raise VPPSerializerValueError(
-                    "Invalid argument: {} expected {}.{}".
-                    format(data, self.name, a))
+                    f"Invalid argument: {data} expected {self.name}.{a}"
+                )
+
 
             # Defaulting to zero.
             if not data or a not in data:  # Default to 0
@@ -650,9 +634,7 @@ class VPPType(Packer):
         return t, total
 
     def __repr__(self):
-        return "%s(name=%s, msgdef=%s)" % (
-            self.__class__.__name__, self.name, self.msgdef
-        )
+        return f"{self.__class__.__name__}(name={self.name}, msgdef={self.msgdef})"
 
 
 class VPPMessage(VPPType):

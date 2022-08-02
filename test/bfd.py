@@ -210,10 +210,7 @@ class VppBFDAuthKey(VppObject):
     def get_bfd_auth_keys_dump_entry(self):
         """ get the entry in the auth keys dump corresponding to this key """
         result = self.test.vapi.bfd_auth_keys_dump()
-        for k in result:
-            if k.conf_key_id == self._conf_key_id:
-                return k
-        return None
+        return next((k for k in result if k.conf_key_id == self._conf_key_id), None)
 
     def query_vpp_config(self):
         return self.get_bfd_auth_keys_dump_entry() is not None
@@ -222,7 +219,7 @@ class VppBFDAuthKey(VppObject):
         self.test.vapi.bfd_auth_del_key(conf_key_id=self._conf_key_id)
 
     def object_id(self):
-        return "bfd-auth-key-%s" % self._conf_key_id
+        return f"bfd-auth-key-{self._conf_key_id}"
 
 
 class VppBFDUDPSession(VppObject):
@@ -234,19 +231,13 @@ class VppBFDUDPSession(VppObject):
         self._test = test
         self._interface = interface
         self._af = af
-        if local_addr:
-            self._local_addr = local_addr
-        else:
-            self._local_addr = None
+        self._local_addr = local_addr or None
         self._peer_addr = peer_addr
         self._desired_min_tx = desired_min_tx
         self._required_min_rx = required_min_rx
         self._detect_mult = detect_mult
         self._sha1_key = sha1_key
-        if bfd_key_id is not None:
-            self._bfd_key_id = bfd_key_id
-        else:
-            self._bfd_key_id = randint(0, 255)
+        self._bfd_key_id = bfd_key_id if bfd_key_id is not None else randint(0, 255)
         self._is_tunnel = is_tunnel
 
     @property
@@ -285,15 +276,15 @@ class VppBFDUDPSession(VppObject):
         """ get the namedtuple entry from bfd udp session dump """
         result = self.test.vapi.bfd_udp_session_dump()
         for s in result:
-            self.test.logger.debug("session entry: %s" % str(s))
+            self.test.logger.debug(f"session entry: {str(s)}")
             if s.sw_if_index == self.interface.sw_if_index:
                 if self.af == AF_INET \
-                        and self.interface.local_ip4 == str(s.local_addr) \
-                        and self.interface.remote_ip4 == str(s.peer_addr):
+                            and self.interface.local_ip4 == str(s.local_addr) \
+                            and self.interface.remote_ip4 == str(s.peer_addr):
                     return s
                 if self.af == AF_INET6 \
-                        and self.interface.local_ip6 == str(s.local_addr) \
-                        and self.interface.remote_ip6 == str(s.peer_addr):
+                            and self.interface.local_ip6 == str(s.local_addr) \
+                            and self.interface.remote_ip6 == str(s.peer_addr):
                     return s
         return None
 
@@ -336,7 +327,7 @@ class VppBFDUDPSession(VppObject):
 
     def activate_auth(self, key, bfd_key_id=None, delayed=False):
         """ activate authentication for this session """
-        self._bfd_key_id = bfd_key_id if bfd_key_id else randint(0, 255)
+        self._bfd_key_id = bfd_key_id or randint(0, 255)
         self._sha1_key = key
         conf_key_id = self._sha1_key.conf_key_id
         is_delayed = 1 if delayed else 0
@@ -380,7 +371,7 @@ class VppBFDUDPSession(VppObject):
     def add_vpp_config(self):
         bfd_key_id = self._bfd_key_id if self._sha1_key else None
         conf_key_id = self._sha1_key.conf_key_id if self._sha1_key else None
-        is_authenticated = True if self._sha1_key else False
+        is_authenticated = bool(self._sha1_key)
         self.test.vapi.bfd_udp_add(sw_if_index=self._interface.sw_if_index,
                                    desired_min_tx=self.desired_min_tx,
                                    required_min_rx=self.required_min_rx,
@@ -402,10 +393,7 @@ class VppBFDUDPSession(VppObject):
                                    peer_addr=self.peer_addr)
 
     def object_id(self):
-        return "bfd-udp-%s-%s-%s-%s" % (self._interface.sw_if_index,
-                                        self.local_addr,
-                                        self.peer_addr,
-                                        self.af)
+        return f"bfd-udp-{self._interface.sw_if_index}-{self.local_addr}-{self.peer_addr}-{self.af}"
 
     def admin_up(self):
         """ set bfd session admin-up """

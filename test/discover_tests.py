@@ -10,7 +10,7 @@ import argparse
 def discover_tests(directory, callback, ignore_path):
     do_insert = True
     for _f in os.listdir(directory):
-        f = "%s/%s" % (directory, _f)
+        f = f"{directory}/{_f}"
         if os.path.isdir(f):
             if ignore_path is not None and f.startswith(ignore_path):
                 continue
@@ -40,7 +40,7 @@ def discover_tests(directory, callback, ignore_path):
 
 
 def print_callback(file_name, cls, method):
-    print("%s.%s.%s" % (file_name, cls.__name__, method))
+    print(f"{file_name}.{cls.__name__}.{method}")
 
 
 if __name__ == '__main__':

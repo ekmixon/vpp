@@ -26,7 +26,7 @@ class VOMTestCase(VppTestCase):
         built_root = os.getenv(var, None)
         self.assertIsNotNone(built_root,
                              "Environment variable `%s' not set" % var)
-        executable = "%s/vom_test/vom_test" % built_root
+        executable = f"{built_root}/vom_test/vom_test"
         worker = Worker([executable, "vpp object model",
                          self.get_api_segment_prefix()], self.logger)
         worker.start()
@@ -37,15 +37,13 @@ class VOMTestCase(VppTestCase):
         if worker.result is None:
             try:
                 error = True
-                self.logger.error(
-                    "Timeout! Worker did not finish in %ss" % timeout)
+                self.logger.error(f"Timeout! Worker did not finish in {timeout}s")
                 os.killpg(os.getpgid(worker.process.pid), signal.SIGTERM)
                 worker.join()
             except:
                 raise Exception("Couldn't kill worker-spawned process")
         if error:
-            raise Exception(
-                "Timeout! Worker did not finish in %ss" % timeout)
+            raise Exception(f"Timeout! Worker did not finish in {timeout}s")
         self.assert_equal(worker.result, 0, "Binary test return code")
 
 

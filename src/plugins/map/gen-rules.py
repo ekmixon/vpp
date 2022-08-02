@@ -33,8 +33,12 @@ def shared11br():
     ip6_dst = ipaddress.ip_network('bbbb::/32')
     psid_len = 6
     for i in range(ip4_pfx.num_addresses):
-        print("map add domain ip4-pfx " + str(ip4_pfx[i]) +  "/32 ip6-pfx ::/0 ip6-shared-src cccc:bbbb::1",
-              "ea-bits-len 0 psid-offset 6 psid-len", psid_len)
+        print(
+            f"map add domain ip4-pfx {str(ip4_pfx[i])}/32 ip6-pfx ::/0 ip6-shared-src cccc:bbbb::1",
+            "ea-bits-len 0 psid-offset 6 psid-len",
+            psid_len,
+        )
+
         for psid in range(0x1 << psid_len):
             print("map add rule index", i, "psid", psid, "ip6-dst", ip6_dst[(i * (0x1<<psid_len)) + psid])
 
@@ -48,8 +52,13 @@ def shared11():
     ip6_dst = ipaddress.ip_network('bbbb::/32')
     psid_len = 6
     for i in range(ip4_pfx.num_addresses):
-        print("map add domain ip4-pfx " + str(ip4_pfx[i]) +  "/32 ip6-pfx ::/0 ip6-src", ip6_src[i],
-              "ea-bits-len 0 psid-offset 6 psid-len", psid_len)
+        print(
+            f"map add domain ip4-pfx {str(ip4_pfx[i])}/32 ip6-pfx ::/0 ip6-src",
+            ip6_src[i],
+            "ea-bits-len 0 psid-offset 6 psid-len",
+            psid_len,
+        )
+
         for psid in range(0x1 << psid_len):
             print("map add rule index", i, "psid", psid, "ip6-dst", ip6_dst[(i * (0x1<<psid_len)) + psid])
 
@@ -62,8 +71,13 @@ def smallshared11():
     ip6_dst = ipaddress.ip_network('bbbb::/32')
     psid_len = 6
     for i in range(ip4_pfx.num_addresses):
-        print("map add domain ip4-pfx " + str(ip4_pfx[i]) +  "/32 ip6-pfx ::/0 ip6-src", ip6_src[i],
-              "ea-bits-len 0 psid-offset 6 psid-len", psid_len)
+        print(
+            f"map add domain ip4-pfx {str(ip4_pfx[i])}/32 ip6-pfx ::/0 ip6-src",
+            ip6_src[i],
+            "ea-bits-len 0 psid-offset 6 psid-len",
+            psid_len,
+        )
+
         for psid in range(0x1 << psid_len):
             print("map add rule index", i, "psid", psid, "ip6-dst", ip6_dst[(i * (0x1<<psid_len)) + psid])
 
@@ -76,15 +90,20 @@ def full11():
     ip6_dst = ipaddress.ip_network('bbbb::/32')
     psid_len = 0
     for i in range(ip4_pfx.num_addresses):
-        print("map add domain ip4-pfx " + str(ip4_pfx[i]) +  "/32 ip6-pfx " + str(ip6_dst[i]) + "/128 ip6-src", ip6_src[i],
-              "ea-bits-len 0 psid-offset 0 psid-len 0")
+        print(
+            f"map add domain ip4-pfx {str(ip4_pfx[i])}/32 ip6-pfx {str(ip6_dst[i])}/128 ip6-src",
+            ip6_src[i],
+            "ea-bits-len 0 psid-offset 0 psid-len 0",
+        )
 def full11br():
     ip4_pfx = ipaddress.ip_network('20.0.0.0/16')
     ip6_dst = ipaddress.ip_network('bbbb::/32')
     psid_len = 0
     for i in range(ip4_pfx.num_addresses):
-        print("map add domain ip4-pfx " + str(ip4_pfx[i]) +  "/32 ip6-pfx " + str(ip6_dst[i]) + "/128 ip6-shared-src cccc:bbbb::1",
-              "ea-bits-len 0 psid-offset 0 psid-len 0")
+        print(
+            f"map add domain ip4-pfx {str(ip4_pfx[i])}/32 ip6-pfx {str(ip6_dst[i])}/128 ip6-shared-src cccc:bbbb::1",
+            "ea-bits-len 0 psid-offset 0 psid-len 0",
+        )
 
 #
 # Algorithmic mapping Shared IPv4 address
@@ -99,7 +118,7 @@ def algo():
 def ip4():
     ip4_pfx = ipaddress.ip_network('20.0.0.0/16')
     for i in range(ip4_pfx.num_addresses):
-        print("ip route add " + str(ip4_pfx[i]) +  "/32 via 172.16.0.2")
+        print(f"ip route add {str(ip4_pfx[i])}/32 via 172.16.0.2")
 
 
 globals()[args.mapmode]()

@@ -29,18 +29,33 @@ DEFAULT_OUTPUT = "build-root/docs/siphons"
 DEFAULT_PREFIX = os.getcwd()
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--log-file", default=DEFAULT_LOGFILE,
-                help="Log file [%s]" % DEFAULT_LOGFILE)
-ap.add_argument("--log-level", default=DEFAULT_LOGLEVEL,
-                choices=["debug", "info", "warning", "error", "critical"],
-                help="Logging level [%s]" % DEFAULT_LOGLEVEL)
+ap.add_argument(
+    "--log-file", default=DEFAULT_LOGFILE, help=f"Log file [{DEFAULT_LOGFILE}]"
+)
 
-ap.add_argument("--output", '-o', metavar="directory", default=DEFAULT_OUTPUT,
-                help="Output directory for .siphon files [%s]" %
-                     DEFAULT_OUTPUT)
-ap.add_argument("--input-prefix", metavar="path", default=DEFAULT_PREFIX,
-                help="Prefix to strip from input pathnames [%s]" %
-                     DEFAULT_PREFIX)
+ap.add_argument(
+    "--log-level",
+    default=DEFAULT_LOGLEVEL,
+    choices=["debug", "info", "warning", "error", "critical"],
+    help=f"Logging level [{DEFAULT_LOGLEVEL}]",
+)
+
+
+ap.add_argument(
+    "--output",
+    '-o',
+    metavar="directory",
+    default=DEFAULT_OUTPUT,
+    help=f"Output directory for .siphon files [{DEFAULT_OUTPUT}]",
+)
+
+ap.add_argument(
+    "--input-prefix",
+    metavar="path",
+    default=DEFAULT_PREFIX,
+    help=f"Prefix to strip from input pathnames [{DEFAULT_PREFIX}]",
+)
+
 ap.add_argument("input", nargs='+', metavar="input_file",
                 help="Input C source files")
 args = ap.parse_args()
@@ -65,9 +80,8 @@ for filename in args.input:
                 if file not in files:
                     files.append(file)
             lines = None
-    else:
-        if filename not in files:
-            files.append(filename)
+    elif filename not in files:
+        files.append(filename)
 
 # Iterate all the input files we've been given
 for filename in files:

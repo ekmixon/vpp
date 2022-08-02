@@ -51,12 +51,10 @@ class VppHugePageUtil(object):
         filename = rootdir + node['hugepages']['hugepage_config_file']
 
         cmd = 'echo "{0}" | sudo tee {1}'.\
-            format(vpp_hugepage_config, filename)
+                format(vpp_hugepage_config, filename)
         (ret, stdout, stderr) = VPPUtil.exec_command(cmd)
         if ret != 0:
-            raise RuntimeError('{} failed on node {} {} {}'.
-                               format(cmd, node['host'],
-                                      stdout, stderr))
+            raise RuntimeError(f"{cmd} failed on node {node['host']} {stdout} {stderr}")
 
     def get_actual_huge_pages(self):
         """
@@ -72,9 +70,9 @@ class VppHugePageUtil(object):
         (ret, stdout, stderr) = VPPUtil.exec_command(cmd)
         if ret != 0:
             raise RuntimeError(
-                '{} failed on node {} {} {}'.format(
-                    cmd, self._node['host'],
-                    stdout, stderr))
+                f"{cmd} failed on node {self._node['host']} {stdout} {stderr}"
+            )
+
 
         total = re.findall(r'HugePages_Total:\s+\w+', stdout)
         free = re.findall(r'HugePages_Free:\s+\w+', stdout)

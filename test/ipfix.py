@@ -535,12 +535,12 @@ class IPFIXDecoder:
             if template['id'] == data_set.setID:
                 offset = 0
                 d = data_set[Data].data
-                for i in range(len(d) // template['rec_len']):
+                for _ in range(len(d) // template['rec_len']):
                     record = {}
                     for field in template['fields']:
                         f = d[offset:offset + field['len']]
                         offset += field['len']
-                        record.update({field['name']: f})
+                        record[field['name']] = f
                     data.append(record)
                 break
         return data

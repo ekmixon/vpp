@@ -25,10 +25,10 @@ class VppLispLocatorSet(VppObject):
 
     def get_lisp_locator_sets_dump_entry(self):
         result = self.test.vapi.lisp_locator_set_dump()
-        for ls in result:
-            if ls.ls_name.strip('\x00') == self._ls_name:
-                return ls
-        return None
+        return next(
+            (ls for ls in result if ls.ls_name.strip('\x00') == self._ls_name),
+            None,
+        )
 
     def query_vpp_config(self):
         return self.get_lisp_locator_sets_dump_entry() is not None
@@ -38,7 +38,7 @@ class VppLispLocatorSet(VppObject):
                                                 is_add=0)
 
     def object_id(self):
-        return 'lisp-locator-set-%s' % self._ls_name
+        return f'lisp-locator-set-{self._ls_name}'
 
 
 class VppLispLocator(VppObject):
@@ -83,10 +83,14 @@ class VppLispLocator(VppObject):
     def get_lisp_locator_dump_entry(self):
         locators = self.test.vapi.lisp_locator_dump(
                 is_index_set=0, ls_name=self._ls_name)
-        for locator in locators:
-            if locator.sw_if_index == self._sw_if_index:
-                return locator
-        return None
+        return next(
+            (
+                locator
+                for locator in locators
+                if locator.sw_if_index == self._sw_if_index
+            ),
+            None,
+        )
 
     def query_vpp_config(self):
         locator = self.get_lisp_locator_dump_entry()
@@ -201,12 +205,10 @@ class VppLispMapping(VppObject):
             eid_set=1, vni=self._vni, eid=self._eid.packed)
 
     def query_vpp_config(self):
-        mapping = self.get_lisp_mapping_dump_entry()
-        return mapping
+        return self.get_lisp_mapping_dump_entry()
 
     def object_id(self):
-        return 'lisp-mapping-[%s]-%s-%s-%s' % (
-            self.vni, self.eid.address, self.priority, self.weight)
+        return f'lisp-mapping-[{self.vni}]-{self.eid.address}-{self.priority}-{self.weight}'
 
 
 class VppLocalMapping(VppLispMapping):
@@ -265,10 +267,7 @@ class VppRemoteMapping(VppLispMapping):
 
     @property
     def rlocs(self):
-        rlocs = []
-        for rloc in self._rlocs:
-            rlocs.append(rloc.packed)
-        return rlocs
+        return [rloc.packed for rloc in self._rlocs]
 
     def add_vpp_config(self):
         self.test.vapi.lisp_add_del_remote_mapping(
@@ -322,22 +321,21 @@ class VppLispAdjacency(VppObject):
         if eid.eid_type != eid_api.type:
             return False
 
-        if eid_api.type == LispEIDType.PREFIX:
-            if eid.address.prefixlen != eid_api.address.prefix.prefixlen:
-                return False
-
-        if eid.address != eid_api.address:
+        if (
+            eid_api.type == LispEIDType.PREFIX
+            and eid.address.prefixlen != eid_api.address.prefix.prefixlen
+        ):
             return False
 
-        return True
+        return eid.address == eid_api.address
 
     def query_vpp_config(self):
         res = self.test.vapi.lisp_adjacencies_get(vni=self._vni)
-        for adj in res.adjacencies:
-            if self.eid_equal(self._leid, adj.leid) and \
-                    self.eid_equal(self._reid, adj.reid):
-                return True
-        return False
+        return any(
+            self.eid_equal(self._leid, adj.leid)
+            and self.eid_equal(self._reid, adj.reid)
+            for adj in res.adjacencies
+        )
 
     def remove_vpp_config(self):
         self.test.vapi.lisp_add_del_adjacency(

@@ -64,7 +64,7 @@ def metaclass(metaclass):
 
 
 class VppEnumType(type):
-    def __getattr__(cls, name):
+    def __getattr__(self, name):
         t = vpp_get_type(name)
         return t.enum
 
@@ -90,16 +90,16 @@ def vpp_atexit(vpp_weakref):
 def add_convenience_methods():
     # provide convenience methods to IP[46]Address.vapi_af
     def _vapi_af(self):
-        if 6 == self._version:
+        if self._version == 6:
             return VppEnum.vl_api_address_family_t.ADDRESS_IP6.value
-        if 4 == self._version:
+        if self._version == 4:
             return VppEnum.vl_api_address_family_t.ADDRESS_IP4.value
         raise ValueError("Invalid _version.")
 
     def _vapi_af_name(self):
-        if 6 == self._version:
+        if self._version == 6:
             return 'ip6'
-        if 4 == self._version:
+        if self._version == 4:
             return 'ip4'
         raise ValueError("Invalid _version.")
 
@@ -121,7 +121,7 @@ class FuncWrapper:
         return self._func(**kwargs)
 
     def __repr__(self):
-        return '<FuncWrapper(func=<%s(%s)>)>' % (self.__name__, self.__doc__)
+        return f'<FuncWrapper(func=<{self.__name__}({self.__doc__})>)>'
 
 
 class VPPApiError(Exception):
@@ -180,15 +180,18 @@ class VPPApiJSONFiles:
             'variant'  (typically '' or '_debug')"""
             # Since 'core' and 'plugin' files are staged
             # in separate directories, we target the parent dir.
-            return os.path.sep.join((
-                srcdir,
-                'build-root',
-                'install-vpp%s-native' % variant,
-                'vpp',
-                'share',
-                'vpp',
-                'api',
-            ))
+            return os.path.sep.join(
+                (
+                    srcdir,
+                    'build-root',
+                    f'install-vpp{variant}-native',
+                    'vpp',
+                    'share',
+                    'vpp',
+                    'api',
+                )
+            )
+
 
         srcdir = None
         if dmatch('src/scripts'):
@@ -226,7 +229,7 @@ class VPPApiJSONFiles:
         return None
 
     @classmethod
-    def find_api_files(cls, api_dir=None, patterns='*'):  # -> list
+    def find_api_files(cls, api_dir=None, patterns='*'):    # -> list
         """Find API definition files from the given directory tree with the
         given pattern. If no directory is given then find_api_dir() is used
         to locate one. If no pattern is given then all definition files found
@@ -248,32 +251,30 @@ class VPPApiJSONFiles:
         """
         if api_dir is None:
             api_dir = cls.find_api_dir([])
-            if api_dir is None:
-                raise VPPApiError("api_dir cannot be located")
+        if api_dir is None:
+            raise VPPApiError("api_dir cannot be located")
 
-        if isinstance(patterns, list) or isinstance(patterns, tuple):
-            patterns = [p.strip() + '.api.json' for p in patterns]
+        if isinstance(patterns, (list, tuple)):
+            patterns = [f'{p.strip()}.api.json' for p in patterns]
         else:
-            patterns = [p.strip() + '.api.json' for p in patterns.split(",")]
+            patterns = [f'{p.strip()}.api.json' for p in patterns.split(",")]
 
         api_files = []
         for root, dirnames, files in os.walk(api_dir):
             # iterate all given patterns and de-dup the result
-            files = set(sum([fnmatch.filter(files, p) for p in patterns], []))
-            for filename in files:
-                api_files.append(os.path.join(root, filename))
-
+            files = set(sum((fnmatch.filter(files, p) for p in patterns), []))
+            api_files.extend(os.path.join(root, filename) for filename in files)
         return api_files
 
     @classmethod
-    def process_json_file(self, apidef_file):
+    def process_json_file(cls, apidef_file):
         api = json.load(apidef_file)
-        return self._process_json(api)
+        return cls._process_json(api)
 
     @classmethod
-    def process_json_str(self, json_str):
+    def process_json_str(cls, json_str):
         api = json.loads(json_str)
-        return self._process_json(api)
+        return cls._process_json(api)
 
     @staticmethod
     def _process_json(api):  # -> Tuple[Dict, Dict]
@@ -282,7 +283,7 @@ class VPPApiJSONFiles:
         messages = {}
         try:
             for t in api['enums']:
-                t[0] = 'vl_api_' + t[0] + '_t'
+                t[0] = f'vl_api_{t[0]}' + '_t'
                 types[t[0]] = {'type': 'enum', 'data': t}
         except KeyError:
             pass
@@ -313,7 +314,7 @@ class VPPApiJSONFiles:
             pass
 
         try:
-            services.update(api['services'])
+            services |= api['services']
         except KeyError:
             pass
 
@@ -322,12 +323,11 @@ class VPPApiJSONFiles:
             unresolved = {}
             for k, v in types.items():
                 t = v['data']
-                if not vpp_get_type(k):
-                    if v['type'] == 'enum':
-                        try:
-                            VPPEnumType(t[0], t[1:])
-                        except ValueError:
-                            unresolved[k] = v
+                if not vpp_get_type(k) and v['type'] == 'enum':
+                    try:
+                        VPPEnumType(t[0], t[1:])
+                    except ValueError:
+                        unresolved[k] = v
                 if not vpp_get_type(k):
                     if v['type'] == 'enumflag':
                         try:
@@ -349,11 +349,10 @@ class VPPApiJSONFiles:
                             VPPTypeAlias(k, t)
                         except ValueError:
                             unresolved[k] = v
-            if len(unresolved) == 0:
+            if not unresolved:
                 break
             if i > 3:
-                raise VPPValueError('Unresolved type definitions {}'
-                                    .format(unresolved))
+                raise VPPValueError(f'Unresolved type definitions {unresolved}')
             types = unresolved
             i += 1
         try:
@@ -362,7 +361,7 @@ class VPPApiJSONFiles:
                     messages[m[0]] = VPPMessage(m[0], m[1:])
                 except VPPNotImplementedError:
                     ### OLE FIXME
-                    logger.error('Not implemented error for {}'.format(m[0]))
+                    logger.error(f'Not implemented error for {m[0]}')
         except KeyError:
             pass
         return messages, services
@@ -405,8 +404,7 @@ class VPPApiClient:
         to report at (from the loglevels in the logging module).
         """
         if logger is None:
-            logger = logging.getLogger(
-                "{}.{}".format(__name__, self.__class__.__name__))
+            logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
             if loglevel is not None:
                 logger.setLevel(loglevel)
         self.logger = logger
@@ -442,13 +440,13 @@ class VPPApiClient:
         for file in apifiles:
             with open(file) as apidef_file:
                 m, s = VPPApiJSONFiles.process_json_file(apidef_file)
-                self.messages.update(m)
+                self.messages |= m
                 self.services.update(s)
 
         self.apifiles = apifiles
 
         # Basic sanity check
-        if len(self.messages) == 0 and not testmode:
+        if not self.messages and not testmode:
             raise VPPValueError(1, 'Missing JSON message definitions')
         if not(verify_enum_hint(VppEnum.vl_api_address_family_t)):
             raise VPPRuntimeError("Invalid address family hints. "
@@ -495,9 +493,10 @@ class VPPApiClient:
                 return self._call_vpp(i, msg, multipart, **kwargs)
 
         f.__name__ = str(msg.name)
-        f.__doc__ = ", ".join(["%s %s" %
-                               (msg.fieldtypes[j], k)
-                               for j, k in enumerate(msg.fields)])
+        f.__doc__ = ", ".join(
+            [f"{msg.fieldtypes[j]} {k}" for j, k in enumerate(msg.fields)]
+        )
+
         f.msg = msg
 
         return f
@@ -507,7 +506,7 @@ class VPPApiClient:
         self.id_msgdef = [None] * (self.vpp_dictionary_maxid + 1)
         self._api = VppApiDynamicMethodHolder()
         for name, msg in self.messages.items():
-            n = name + '_' + msg.crc[2:]
+            n = f'{name}_{msg.crc[2:]}'
             i = self.transport.get_msg_index(n)
             if i > 0:
                 self.id_msgdef[i] = msg
@@ -587,12 +586,7 @@ class VPPApiClient:
         if r is None:
             return
 
-        # If we have a context, then use the context to find any
-        # request waiting for a reply
-        context = 0
-        if hasattr(r, 'context') and r.context > 0:
-            context = r.context
-
+        context = r.context if hasattr(r, 'context') and r.context > 0 else 0
         if context == 0:
             # No context -> async notification that we feed to the callback
             self.message_queue.put_nowait(r)
@@ -615,9 +609,7 @@ class VPPApiClient:
         # Decode message and returns a tuple.
         #
         msgobj = self.id_msgdef[i]
-        if 'context' in msgobj.field_by_name and context >= 0:
-            return True
-        return False
+        return 'context' in msgobj.field_by_name and context >= 0
 
     def decode_incoming_msg(self, msg, no_type_conversion=False):
         if not msg:

@@ -62,7 +62,7 @@ class TestResult(dict):
         self[TEST_RUN] = []
         self.crashed = False
         self.testcase_suite = testcase_suite
-        self.testcases = [testcase for testcase in testcase_suite]
+        self.testcases = list(testcase_suite)
         self.testcases_by_id = testcases_by_id
 
     def was_successful(self):
@@ -71,7 +71,7 @@ class TestResult(dict):
             == self.testcase_suite.countTestCases()
 
     def no_tests_run(self):
-        return 0 == len(self[TEST_RUN])
+        return len(self[TEST_RUN]) == 0
 
     def process_result(self, test_id, result):
         self[result].append(test_id)
@@ -86,10 +86,9 @@ class TestResult(dict):
             return suite_from_failed(self.testcase_suite, rerun_ids)
 
     def get_testcase_names(self, test_id):
-        # could be tearDownClass (test_ipsec_esp.TestIpsecEsp1)
-        setup_teardown_match = re.match(
-            r'((tearDownClass)|(setUpClass)) \((.+\..+)\)', test_id)
-        if setup_teardown_match:
+        if setup_teardown_match := re.match(
+            r'((tearDownClass)|(setUpClass)) \((.+\..+)\)', test_id
+        ):
             test_name, _, _, testcase_name = setup_teardown_match.groups()
             if len(testcase_name.split('.')) == 2:
                 for key in self.testcases_by_id.keys():
@@ -104,19 +103,18 @@ class TestResult(dict):
         return testcase_name, test_name
 
     def _get_test_description(self, test_id):
-        if test_id in self.testcases_by_id:
-            desc = get_test_description(descriptions,
-                                        self.testcases_by_id[test_id])
-        else:
-            desc = test_id
-        return desc
+        return (
+            get_test_description(descriptions, self.testcases_by_id[test_id])
+            if test_id in self.testcases_by_id
+            else test_id
+        )
 
     def _get_testcase_doc_name(self, test_id):
-        if test_id in self.testcases_by_id:
-            doc_name = get_testcase_doc_name(self.testcases_by_id[test_id])
-        else:
-            doc_name = test_id
-        return doc_name
+        return (
+            get_testcase_doc_name(self.testcases_by_id[test_id])
+            if test_id in self.testcases_by_id
+            else test_id
+        )
 
 
 def test_runner_wrapper(suite, keep_alive_pipe, stdouterr_queue,
@@ -160,10 +158,11 @@ class TestCaseWrapper(object):
         self.vpp_pid = None
         self.last_heard = time.time()
         self.core_detected_at = None
-        self.testcases_by_id = {}
         self.testclasess_with_core = {}
-        for testcase in self.testcase_suite:
-            self.testcases_by_id[testcase.id()] = testcase
+        self.testcases_by_id = {
+            testcase.id(): testcase for testcase in self.testcase_suite
+        }
+
         self.result = TestResult(testcase_suite, self.testcases_by_id)
 
     @property
@@ -242,18 +241,15 @@ def handle_failed_suite(logger, last_test_temp_dir, vpp_pid):
         # Need to create link in case of a timeout or core dump without failure
         lttd = os.path.basename(last_test_temp_dir)
         failed_dir = os.getenv('FAILED_DIR')
-        link_path = '%s%s-FAILED' % (failed_dir, lttd)
+        link_path = f'{failed_dir}{lttd}-FAILED'
         if not os.path.exists(link_path):
             os.symlink(last_test_temp_dir, link_path)
-        logger.error("Symlink to failed testcase directory: %s -> %s"
-                     % (link_path, lttd))
+        logger.error(f"Symlink to failed testcase directory: {link_path} -> {lttd}")
 
         # Report core existence
         core_path = get_core_path(last_test_temp_dir)
         if os.path.exists(core_path):
-            logger.error(
-                "Core-file exists in test temporary directory: %s!" %
-                core_path)
+            logger.error(f"Core-file exists in test temporary directory: {core_path}!")
             check_core_path(logger, core_path)
             logger.debug("Running 'file %s':" % core_path)
             try:
@@ -272,8 +268,7 @@ def handle_failed_suite(logger, last_test_temp_dir, vpp_pid):
             except Exception as e:
                 logger.exception("Unexpected error running `file' utility "
                                  "on core-file")
-            logger.error("gdb %s %s" %
-                         (os.getenv('VPP_BIN', 'vpp'), core_path))
+            logger.error(f"gdb {os.getenv('VPP_BIN', 'vpp')} {core_path}")
 
     if vpp_pid:
         # Copy api post mortem
@@ -287,20 +282,21 @@ def handle_failed_suite(logger, last_test_temp_dir, vpp_pid):
 def check_and_handle_core(vpp_binary, tempdir, core_crash_test):
     if is_core_present(tempdir):
         if debug_core:
-            print('VPP core detected in %s. Last test running was %s' %
-                  (tempdir, core_crash_test))
+            print(
+                f'VPP core detected in {tempdir}. Last test running was {core_crash_test}'
+            )
+
             print(single_line_delim)
             spawn_gdb(vpp_binary, get_core_path(tempdir))
             print(single_line_delim)
         elif compress_core:
             print("Compressing core-file in test directory `%s'" % tempdir)
-            os.system("gzip %s" % get_core_path(tempdir))
+            os.system(f"gzip {get_core_path(tempdir)}")
 
 
 def handle_cores(failed_testcases):
     for failed_testcase in failed_testcases:
-        tcs_with_core = failed_testcase.testclasess_with_core
-        if tcs_with_core:
+        if tcs_with_core := failed_testcase.testclasess_with_core:
             for test, vpp_binary, tempdir in tcs_with_core.values():
                 check_and_handle_core(vpp_binary, tempdir, test)
 
@@ -311,10 +307,7 @@ def process_finished_testsuite(wrapped_testcase_suite,
                                results):
     results.append(wrapped_testcase_suite.result)
     finished_testcase_suites.add(wrapped_testcase_suite)
-    stop_run = False
-    if failfast and not wrapped_testcase_suite.was_successful():
-        stop_run = True
-
+    stop_run = bool(failfast and not wrapped_testcase_suite.was_successful())
     if not wrapped_testcase_suite.was_successful():
         failed_wrapped_testcases.add(wrapped_testcase_suite)
         handle_failed_suite(wrapped_testcase_suite.logger,
@@ -340,12 +333,12 @@ def run_forked(testcase_suites):
     def on_suite_start(tc):
         nonlocal tests_running
         nonlocal free_cpus
-        tests_running = tests_running + 1
+        tests_running += 1
 
     def on_suite_finish(tc):
         nonlocal tests_running
         nonlocal free_cpus
-        tests_running = tests_running - 1
+        tests_running -= 1
         assert tests_running >= 0
         free_cpus.extend(tc.get_assigned_cpus())
 
@@ -498,10 +491,7 @@ def run_forked(testcase_suites):
                     a_suite = testcase_suites.pop(0)
                     while a_suite and a_suite.is_tagged_run_solo:
                         solo_testcase_suites.append(a_suite)
-                        if testcase_suites:
-                            a_suite = testcase_suites.pop(0)
-                        else:
-                            a_suite = None
+                        a_suite = testcase_suites.pop(0) if testcase_suites else None
                     if a_suite and can_run_suite(a_suite):
                         run_suite(a_suite)
                 if solo_testcase_suites and tests_running == 0:
@@ -578,25 +568,24 @@ def parse_test_option():
         if '.' in f:
             parts = f.split('.')
             if len(parts) > 3:
-                raise Exception("Unrecognized %s option: %s" %
-                                (test_option, f))
-            if len(parts) > 2:
-                if parts[2] not in ('*', ''):
-                    filter_func_name = parts[2]
+                raise Exception(f"Unrecognized {test_option} option: {f}")
+            if len(parts) > 2 and parts[2] not in ('*', ''):
+                filter_func_name = parts[2]
             if parts[1] not in ('*', ''):
                 filter_class_name = parts[1]
             if parts[0] not in ('*', ''):
-                if parts[0].startswith('test_'):
-                    filter_file_name = parts[0]
-                else:
-                    filter_file_name = 'test_%s' % parts[0]
+                filter_file_name = (
+                    parts[0]
+                    if parts[0].startswith('test_')
+                    else f'test_{parts[0]}'
+                )
+
+        elif f.startswith('test_'):
+            filter_file_name = f
         else:
-            if f.startswith('test_'):
-                filter_file_name = f
-            else:
-                filter_file_name = 'test_%s' % f
+            filter_file_name = f'test_{f}'
     if filter_file_name:
-        filter_file_name = '%s.py' % filter_file_name
+        filter_file_name = f'{filter_file_name}.py'
     return filter_file_name, filter_class_name, filter_func_name
 
 
@@ -614,9 +603,8 @@ def filter_tests(tests, filter_cb):
             # t.id() for common cases like this:
             # test_classifier.TestClassifier.test_acl_ip
             # apply filtering only if it is so
-            if len(parts) == 3:
-                if not filter_cb(parts[0], parts[1], parts[2]):
-                    continue
+            if len(parts) == 3 and not filter_cb(parts[0], parts[1], parts[2]):
+                continue
             result.addTest(t)
         else:
             # unexpected object, don't touch it
@@ -637,9 +625,7 @@ class FilterByTestOption:
                 return False
         if self.filter_class_name and class_name != self.filter_class_name:
             return False
-        if self.filter_func_name and func_name != self.filter_func_name:
-            return False
-        return True
+        return not self.filter_func_name or func_name == self.filter_func_name
 
 
 class FilterByClassList:
@@ -684,10 +670,7 @@ class AllResults(dict):
 
         if result.no_tests_run():
             self.testsuites_no_tests_run.append(result.testcase_suite)
-            if result.crashed:
-                retval = -1
-            else:
-                retval = 1
+            retval = -1 if result.crashed else 1
         elif not result.was_successful():
             retval = 1
 
@@ -864,7 +847,7 @@ if __name__ == '__main__':
         if test_jobs <= 0:
             raise ValueError("Invalid TEST_JOBS value specified, valid "
                              "values are a positive integer or 'auto'")
-        max_concurrent_tests = int(test_jobs)
+        max_concurrent_tests = test_jobs
         print(f"Running at most {max_concurrent_tests} python test processes "
               "concurrently as set by 'TEST_JOBS'.")
 
@@ -889,15 +872,17 @@ if __name__ == '__main__':
     print("Running tests using custom test runner.")
     filter_file, filter_class, filter_func = parse_test_option()
 
-    print("Active filters: file=%s, class=%s, function=%s" % (
-        filter_file, filter_class, filter_func))
+    print(
+        f"Active filters: file={filter_file}, class={filter_class}, function={filter_func}"
+    )
+
 
     filter_cb = FilterByTestOption(filter_file, filter_class, filter_func)
 
     ignore_path = os.getenv("VENV_PATH", None)
     cb = SplitToSuitesCallback(filter_cb)
     for d in args.dir:
-        print("Adding tests from directory tree %s" % d)
+        print(f"Adding tests from directory tree {d}")
         discover_tests(d, cb, ignore_path)
 
     # suites are not hashable, need to use list
@@ -922,15 +907,17 @@ if __name__ == '__main__':
                 t.__class__.skipped_due_to_cpu_lack = True
         suites.append(testcase_suite)
 
-    print("%s out of %s tests match specified filters" % (
-        tests_amount, tests_amount + cb.filtered.countTestCases()))
+    print(
+        f"{tests_amount} out of {tests_amount + cb.filtered.countTestCases()} tests match specified filters"
+    )
+
 
     if not running_extended_tests:
         print("Not running extended tests (some tests will be skipped)")
 
     attempts = retries + 1
     if attempts > 1:
-        print("Perform %s attempts to pass the suite..." % attempts)
+        print(f"Perform {attempts} attempts to pass the suite...")
 
     if run_interactive and suites:
         # don't fork if requiring interactive terminal
@@ -977,5 +964,5 @@ if __name__ == '__main__':
             if exit_code == 0:
                 print('Test run was successful')
             else:
-                print('%s attempt(s) left.' % attempts)
+                print(f'{attempts} attempt(s) left.')
         sys.exit(exit_code)

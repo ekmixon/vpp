@@ -13,7 +13,7 @@ gdb_path = '/usr/bin/gdb'
 def spawn_gdb(binary_path, core_path):
     if os.path.isfile(gdb_path) and os.access(gdb_path, os.X_OK):
         # automatically attach gdb
-        gdb_cmdline = "%s %s %s" % (gdb_path, binary_path, core_path)
+        gdb_cmdline = f"{gdb_path} {binary_path} {core_path}"
         gdb = pexpect.spawn(gdb_cmdline)
         gdb.interact()
         try:
@@ -45,12 +45,12 @@ def start_vpp_in_gdb():
     if os.getenv("VPP_IN_GDB_CMDLINE", "y").lower() in ["1", "y", "yes"]:
         print("Hacking cmdline to make VPP interactive.")
         vpp_cmdline.insert(vpp_cmdline.index("nodaemon"), "interactive")
-    print("VPP cmdline is %s" % " ".join(vpp_cmdline))
+    print(f'VPP cmdline is {" ".join(vpp_cmdline)}')
     print("Running GDB.")
 
     if os.path.isfile(gdb_path) and os.access(gdb_path, os.X_OK):
-        gdb_cmdline = "%s --args %s " % (gdb_path, " ".join(vpp_cmdline))
-        print("GDB cmdline is %s" % gdb_cmdline)
+        gdb_cmdline = f'{gdb_path} --args {" ".join(vpp_cmdline)} '
+        print(f"GDB cmdline is {gdb_cmdline}")
         gdb = pexpect.spawn(gdb_cmdline)
         gdb.interact()
         try:

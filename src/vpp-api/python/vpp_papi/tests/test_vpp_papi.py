@@ -44,7 +44,7 @@ class TestVppPapiVPPApiClientMp(unittest.TestCase):
 
         # reset initialization at module load time.
         c.get_context.context = mp.Value(ctypes.c_uint, 0)
-        procs = [mp.Process(target=c.get_context, args=()) for i in range(10)]
+        procs = [mp.Process(target=c.get_context, args=()) for _ in range(10)]
 
         for p in procs:
             p.start()

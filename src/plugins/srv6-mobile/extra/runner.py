@@ -112,30 +112,29 @@ class Container(object):
         self._ref.kill()
 
     def vppctl(self):
-        system("docker exec -it {} {}".format(self.name, self.cmd))
+        system(f"docker exec -it {self.name} {self.cmd}")
 
     def bash(self):
-        system("docker exec -it {} {}".format(self.name, self.cmd_bash))
+        system(f"docker exec -it {self.name} {self.cmd_bash}")
 
     def vppctl_exec(self, cmd):
-        ec, resp = self._ref.exec_run(cmd="{} {}".format(self.cmd, cmd))
+        ec, resp = self._ref.exec_run(cmd=f"{self.cmd} {cmd}")
         assert(ec == 0)
         return resp
 
     def setup_host_interface(self, name, ip):
-        self.vppctl_exec("create host-interface name {}".format(name))
-        self.vppctl_exec("set int ip addr host-{} {}".format(name, ip))
-        self.vppctl_exec("set int state host-{} up".format(name))
+        self.vppctl_exec(f"create host-interface name {name}")
+        self.vppctl_exec(f"set int ip addr host-{name} {ip}")
+        self.vppctl_exec(f"set int state host-{name} up")
 
     def pg_create_interface(self, local_ip, remote_ip, local_mac, remote_mac):
         # remote_ip can't have subnet mask
 
         time.sleep(2)
         self.vppctl_exec("create packet-generator interface pg0")
-        self.vppctl_exec("set int mac address pg0 {}".format(local_mac))
-        self.vppctl_exec("set int ip addr pg0 {}".format(local_ip))
-        self.vppctl_exec(
-            "set ip neighbor pg0 {} {}".format(remote_ip, remote_mac))
+        self.vppctl_exec(f"set int mac address pg0 {local_mac}")
+        self.vppctl_exec(f"set int ip addr pg0 {local_ip}")
+        self.vppctl_exec(f"set ip neighbor pg0 {remote_ip} {remote_mac}")
         self.vppctl_exec("set int state pg0 up")
 
     def pg_create_interface4(self, local_ip, remote_ip, local_mac, remote_mac):
@@ -143,9 +142,9 @@ class Container(object):
 
         time.sleep(2)
         self.vppctl_exec("create packet-generator interface pg0")
-        self.vppctl_exec("set int mac address pg0 {}".format(local_mac))
-        self.vppctl_exec("set int ip addr pg0 {}".format(local_ip))
-        self.vppctl_exec("set ip neighbor pg0 {} {}".format(remote_ip, remote_mac))
+        self.vppctl_exec(f"set int mac address pg0 {local_mac}")
+        self.vppctl_exec(f"set int ip addr pg0 {local_ip}")
+        self.vppctl_exec(f"set ip neighbor pg0 {remote_ip} {remote_mac}")
         self.vppctl_exec("set int state pg0 up")
 
     def pg_create_interface6(self, local_ip, remote_ip, local_mac, remote_mac):
@@ -153,30 +152,30 @@ class Container(object):
 
         time.sleep(2)
         self.vppctl_exec("create packet-generator interface pg0")
-        self.vppctl_exec("set int mac address pg0 {}".format(local_mac))
-        self.vppctl_exec("set int ip addr pg0 {}".format(local_ip))
-        self.vppctl_exec("set ip neighbor pg0 {} {}".format(remote_ip, remote_mac))
+        self.vppctl_exec(f"set int mac address pg0 {local_mac}")
+        self.vppctl_exec(f"set int ip addr pg0 {local_ip}")
+        self.vppctl_exec(f"set ip neighbor pg0 {remote_ip} {remote_mac}")
         self.vppctl_exec("set int state pg0 up")
 
     def pg_create_interface4_name(self, ifname, local_ip, remote_ip, local_mac, remote_mac):
         # remote_ip can't have subnet mask
 
         time.sleep(2)
-        self.vppctl_exec("create packet-generator interface {}".format(ifname))
-        self.vppctl_exec("set int mac address {} {}".format(ifname, local_mac))
-        self.vppctl_exec("set int ip addr {} {}".format(ifname, local_ip))
-        self.vppctl_exec("set ip neighbor {} {} {}".format(ifname, remote_ip, remote_mac))
-        self.vppctl_exec("set int state {} up".format(ifname))
+        self.vppctl_exec(f"create packet-generator interface {ifname}")
+        self.vppctl_exec(f"set int mac address {ifname} {local_mac}")
+        self.vppctl_exec(f"set int ip addr {ifname} {local_ip}")
+        self.vppctl_exec(f"set ip neighbor {ifname} {remote_ip} {remote_mac}")
+        self.vppctl_exec(f"set int state {ifname} up")
 
     def pg_create_interface6_name(self, ifname, local_ip, remote_ip, local_mac, remote_mac):
         # remote_ip can't have subnet mask
 
         time.sleep(2)
-        self.vppctl_exec("create packet-generator interface {}".format(ifname))
-        self.vppctl_exec("set int mac address {} {}".format(ifname, local_mac))
-        self.vppctl_exec("set int ip addr {} {}".format(ifname, local_ip))
-        self.vppctl_exec("set ip neighbor {} {} {}".format(ifname, remote_ip, remote_mac))
-        self.vppctl_exec("set int state {} up".format(ifname))
+        self.vppctl_exec(f"create packet-generator interface {ifname}")
+        self.vppctl_exec(f"set int mac address {ifname} {local_mac}")
+        self.vppctl_exec(f"set int ip addr {ifname} {local_ip}")
+        self.vppctl_exec(f"set ip neighbor {ifname} {remote_ip} {remote_mac}")
+        self.vppctl_exec(f"set int state {ifname} up")
 
     def pg_enable(self):
         # start packet generator
@@ -185,52 +184,41 @@ class Container(object):
     def pg_create_stream(self, stream):
         wrpcap(self.pg_input_file, stream)
         self.vppctl_exec(
-            "packet-generator new name pg-stream "
-            "node ethernet-input pcap {}".format(
-                self.pg_input_file_in))
+            f"packet-generator new name pg-stream node ethernet-input pcap {self.pg_input_file_in}"
+        )
 
     def pg_start_capture(self):
         if exists(self.pg_output_file):
             remove(self.pg_output_file)
-        self.vppctl_exec(
-            "packet-generator capture pg0 pcap {}".format(
-                self.pg_output_file_in))
+        self.vppctl_exec(f"packet-generator capture pg0 pcap {self.pg_output_file_in}")
 
     def pg_start_capture_name(self, ifname):
         if exists(self.pg_output_file):
             remove(self.pg_output_file)
         self.vppctl_exec(
-            "packet-generator capture {} pcap {}".format(
-                ifname, self.pg_output_file_in))
+            f"packet-generator capture {ifname} pcap {self.pg_output_file_in}"
+        )
 
     def pg_read_packets(self):
         return rdpcap(self.pg_output_file)
 
     def set_ipv6_route(self, out_if_name, next_hop_ip, subnet):
-        self.vppctl_exec(
-            "ip route add {} via host-{} {}".format(
-                subnet, out_if_name, next_hop_ip))
+        self.vppctl_exec(f"ip route add {subnet} via host-{out_if_name} {next_hop_ip}")
 
     def set_ipv6_route2(self, out_if_name, next_hop_ip, subnet):
-        self.vppctl_exec(
-            "ip route add {} via {} {}".format(
-                subnet, out_if_name, next_hop_ip))
+        self.vppctl_exec(f"ip route add {subnet} via {out_if_name} {next_hop_ip}")
 
     def set_ip_pgroute(self, out_if_name, next_hop_ip, subnet):
-        self.vppctl_exec("ip route add {} via {} {}".format(
-            subnet, out_if_name, next_hop_ip))
+        self.vppctl_exec(f"ip route add {subnet} via {out_if_name} {next_hop_ip}")
 
     def set_ipv6_pgroute(self, out_if_name, next_hop_ip, subnet):
-        self.vppctl_exec("ip route add {} via {} {}".format(
-            subnet, out_if_name, next_hop_ip))
+        self.vppctl_exec(f"ip route add {subnet} via {out_if_name} {next_hop_ip}")
 
     def set_ipv6_default_route(self, out_if_name, next_hop_ip):
-        self.vppctl_exec(
-            "ip route add ::/0 via host-{} {}".format(
-                out_if_name, next_hop_ip))
+        self.vppctl_exec(f"ip route add ::/0 via host-{out_if_name} {next_hop_ip}")
 
     def enable_trace(self, count):
-        self.vppctl_exec("trace add af-packet-input {}".format(count))
+        self.vppctl_exec(f"trace add af-packet-input {count}")
 
 
 class Containers(object):
@@ -380,37 +368,34 @@ class Program(object):
         return self.path.rsplit("/", 4)[0]
 
     def get_name(self, name):
-        if not self.name_prefix:
-            return name
-        return "{}-{}".format(self.name_prefix, name)
+        return f"{self.name_prefix}-{name}" if self.name_prefix else name
 
     def stop_containers(self):
 
         for name in self.instance_names:
-            instance = self.containers.get(self.get_name(name))
-            if instance:
+            if instance := self.containers.get(self.get_name(name)):
                 instance.rem()
 
         for name in self.network_names:
-            network = self.networks.get(self.get_name(name))
-            if network:
+            if network := self.networks.get(self.get_name(name)):
                 network.rem()
 
     def start_containers(self):
 
         self.stop_containers()
 
-        networks = list()
+        networks = [
+            self.networks.new(self.get_name(name)) for name in self.network_names
+        ]
 
-        for name in self.network_names:
-            networks.append(self.networks.new(self.get_name(name)))
 
         n1, n2, n3 = networks
 
-        instances = list()
+        instances = [
+            self.containers.new(self.get_name(name))
+            for name in self.instance_names
+        ]
 
-        for name in self.instance_names:
-            instances.append(self.containers.new(self.get_name(name)))
 
         c1, c2, c3, c4 = instances
 
@@ -479,7 +464,7 @@ class Program(object):
         p = (Ether(src="aa:bb:cc:dd:ee:02", dst="aa:bb:cc:dd:ee:01") /
              IPv6(src="C::2", dst="B::2") / ICMPv6EchoRequest())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -492,7 +477,7 @@ class Program(object):
 
         # timeout (sleep) if needed
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -542,7 +527,7 @@ class Program(object):
         p = (Ether(src="aa:bb:cc:dd:ee:02", dst="aa:bb:cc:dd:ee:01") /
              IPv6(src="C::2", dst="B::2") / ICMPv6EchoRequest())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -557,7 +542,7 @@ class Program(object):
 
         # timeout (sleep) if needed
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -896,10 +881,10 @@ class Program(object):
              IP(src="172.99.0.1", dst="172.99.0.2") /
              ICMP())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
-        time.sleep(10) 
+        time.sleep(10)
         c1.enable_trace(10)
         c4.enable_trace(10)
 
@@ -912,7 +897,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -966,10 +951,10 @@ class Program(object):
              IP(src="172.99.0.1", dst="172.99.0.2") /
              ICMP())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
-        time.sleep(10) 
+        time.sleep(10)
         c1.enable_trace(10)
         c4.enable_trace(10)
 
@@ -982,7 +967,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -1037,7 +1022,7 @@ class Program(object):
              IP(src="172.99.0.1", dst="172.99.0.2") /
              ICMP())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -1052,7 +1037,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -1104,7 +1089,7 @@ class Program(object):
              UDP(sport=2152, dport=2152) /
              GTP_U_Header(gtp_type="echo_request", S=1, teid=200, seq=200))
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -1119,7 +1104,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -1171,7 +1156,7 @@ class Program(object):
              UDP(sport=2152, dport=2152) /
              GTP_U_Header(gtp_type="echo_response", S=1, teid=200, seq=200))
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -1186,7 +1171,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -1240,7 +1225,7 @@ class Program(object):
              IE_TEIDI(TEIDI=65535)/IE_GSNAddress(address="1.1.1.1")/
              IE_PrivateExtension(extention_value="z"))
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -1255,7 +1240,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -1309,7 +1294,7 @@ class Program(object):
              IPv6(src="2001::1", dst="2002::1") /
              ICMPv6EchoRequest())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -1324,7 +1309,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -1379,7 +1364,7 @@ class Program(object):
              IPv6(src="2001::1", dst="2002::1") /
              ICMPv6EchoRequest())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -1394,7 +1379,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -1454,7 +1439,7 @@ class Program(object):
              IP(src="172.99.0.1", dst="172.99.0.2") /
              ICMP())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -1469,7 +1454,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -1530,7 +1515,7 @@ class Program(object):
              IP(src="172.99.0.1", dst="172.99.0.2") /
              ICMP())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -1545,7 +1530,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -1603,7 +1588,7 @@ class Program(object):
              UDP(sport=2152, dport=2152) /
              GTP_U_Header(gtp_type="echo_request", S=1, teid=200, seq=300))
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -1618,7 +1603,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -1676,7 +1661,7 @@ class Program(object):
              UDP(sport=2152, dport=2152) /
              GTP_U_Header(gtp_type="echo_response", S=1, teid=200, seq=300))
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -1691,7 +1676,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -1751,7 +1736,7 @@ class Program(object):
              IE_TEIDI(TEIDI=65535)/IE_GSNAddress(address="1.1.1.1")/
              IE_PrivateExtension(extention_value="z"))
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -1766,7 +1751,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -1826,7 +1811,7 @@ class Program(object):
              IPv6(src="2001::1", dst="2002::1") /
              ICMPv6EchoRequest())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -1841,7 +1826,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -1902,7 +1887,7 @@ class Program(object):
              IPv6(src="2001::1", dst="2002::1") /
              ICMPv6EchoRequest())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -1917,7 +1902,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -1978,7 +1963,7 @@ class Program(object):
              IP(src="172.100.0.1", dst="172.200.0.1") /
              ICMP())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -1993,7 +1978,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -2055,7 +2040,7 @@ class Program(object):
              IP(src="172.100.0.1", dst="172.200.0.1") /
              ICMP())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -2070,7 +2055,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -2131,7 +2116,7 @@ class Program(object):
              IPv6(src="2001::1", dst="2002::1") /
              ICMPv6EchoRequest())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -2146,7 +2131,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -2208,7 +2193,7 @@ class Program(object):
              IPv6(src="2001::1", dst="2002::1") /
              ICMPv6EchoRequest())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -2223,7 +2208,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c4.name))
+        print(f"Receiving packet on {c4.name}:")
         for p in c4.pg_read_packets():
             p.show2()
 
@@ -2273,7 +2258,7 @@ class Program(object):
              IP(src="172.100.0.1", dst="172.200.0.1") /
              ICMP())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -2287,7 +2272,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c1.name))
+        print(f"Receiving packet on {c1.name}:")
         for p in c1.pg_read_packets():
             p.show2()
 
@@ -2336,7 +2321,7 @@ class Program(object):
              IP(src="172.100.0.1", dst="172.200.0.1") /
              ICMP())
 
-        print("Sending packet on {}:".format(c1.name))
+        print(f"Sending packet on {c1.name}:")
         p.show2()
 
         c1.enable_trace(10)
@@ -2350,7 +2335,7 @@ class Program(object):
         print("Sleeping")
         time.sleep(5)
 
-        print("Receiving packet on {}:".format(c1.name))
+        print(f"Receiving packet on {c1.name}:")
         for p in c1.pg_read_packets():
             p.show2()
 
@@ -2360,48 +2345,50 @@ class Program(object):
 
         for i, name in enumerate(self.instance_names):
             name = self.get_name(name)
-            print("\t[{}] {} - {}".format(
-                i, name,
-                "running" if self.containers.get(name) else "missing"))
+            print(
+                f'\t[{i}] {name} - {"running" if self.containers.get(name) else "missing"}'
+            )
+
 
         print("Networks:")
 
         for i, name in enumerate(self.network_names):
             name = self.get_name(name)
-            print("\t[{}] {} - {}".format(
-                i, name,
-                "running" if self.networks.get(name) else "missing"))
+            print(
+                f'\t[{i}] {name} - {"running" if self.networks.get(name) else "missing"}'
+            )
 
     def build_image(self):
-        print("VPP Path (build): {}".format(self.vpp_path))
+        print(f"VPP Path (build): {self.vpp_path}")
         self.containers.build(self.path, self.vpp_path)
 
     def release_image(self):
-        print("VPP Path (release): {}".format(self.vpp_path))
+        print(f"VPP Path (release): {self.vpp_path}")
         instance = self.containers.new("release-build")
 
         system(
-            "docker cp release-build:{}/vpp-package.tgz {}/".format(
-                self.vpp_path, self.vpp_path))
+            f"docker cp release-build:{self.vpp_path}/vpp-package.tgz {self.vpp_path}/"
+        )
+
 
         instance.rem()
 
         self.containers.release(self.path, self.vpp_path)
 
-        system("rm -rf {}/vpp-package.tgz".format(self.vpp_path))
+        system(f"rm -rf {self.vpp_path}/vpp-package.tgz")
 
     def vppctl(self, index, command=None):
         if index >= len(self.instance_names):
             return
         name = self.get_name(self.instance_names[index])
-        self.logger.error("connecting to: {}".format(name))
+        self.logger.error(f"connecting to: {name}")
         self.containers.vppctl(name, command)
 
     def bash(self, index):
         if index >= len(self.instance_names):
             return
         name = self.get_name(self.instance_names[index])
-        self.logger.error("connecting to: {}".format(name))
+        self.logger.error(f"connecting to: {name}")
         self.containers.bash(name)
 
 
@@ -2489,14 +2476,8 @@ def main(op=None, prefix=None, verbose=None,
     if verbose:
         basicConfig(level=verbose_levels[verbose])
 
-    if image == 'release':
-        image = "srv6m-release-image"
-    elif image == 'debug':
-        image = "srv6m-image"
-    else:
-        image = "srv6m-image"
-
-    print("Target image: {}".format(image))
+    image = "srv6m-release-image" if image == 'release' else "srv6m-image"
+    print(f"Target image: {image}")
 
     program = Program(image, prefix)
 

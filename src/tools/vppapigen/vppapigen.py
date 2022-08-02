@@ -10,8 +10,11 @@ from subprocess import Popen, PIPE
 import ply.lex as lex
 import ply.yacc as yacc
 
-assert sys.version_info >= (3, 5), \
-    "Not supported Python version: {}".format(sys.version)
+assert sys.version_info >= (
+    3,
+    5,
+), f"Not supported Python version: {sys.version}"
+
 log = logging.getLogger('vppapigen')
 
 # Ensure we don't leave temporary files around
@@ -29,7 +32,7 @@ seen_imports = {}
 
 def global_type_add(name, obj):
     '''Add new type to the dictionary of types '''
-    type_name = 'vl_api_' + name + '_t'
+    type_name = f'vl_api_{name}_t'
     if type_name in global_types:
         raise KeyError("Attempted redefinition of {!r} with {!r}.".format(
             name, obj))
@@ -38,7 +41,7 @@ def global_type_add(name, obj):
 
 # All your trace are belong to us!
 def exception_handler(exception_type, exception, traceback):
-    print("%s: %s" % (exception_type.__name__, exception))
+    print(f"{exception_type.__name__}: {exception}")
 
 
 #
@@ -107,10 +110,7 @@ class VPPAPILexer:
     def t_NUM(self, t):
         r'0[xX][0-9a-fA-F]+|-?\d+\.?\d*'
         base = 16 if t.value.startswith('0x') else 10
-        if '.' in t.value:
-            t.value = float(t.value)
-        else:
-            t.value = int(t.value, base)
+        t.value = float(t.value) if '.' in t.value else int(t.value, base)
         return t
 
     def t_ID(self, t):
@@ -132,11 +132,9 @@ class VPPAPILexer:
 
     # Error handling rule
     def t_error(self, t):
-        raise ParseError("Illegal character '{}' ({})"
-                         "in {}: line {}".format(t.value[0],
-                                                 hex(ord(t.value[0])),
-                                                 self.filename,
-                                                 t.lexer.lineno))
+        raise ParseError(
+            f"Illegal character '{t.value[0]}' ({hex(ord(t.value[0]))})in {self.filename}: line {t.lexer.lineno}"
+        )
 
     # Define a rule so we can track line numbers
     def t_newline(self, t):
@@ -164,23 +162,24 @@ def vla_is_last_check(name, block):
             vla = True
             if i + 1 < len(block):
                 raise ValueError(
-                    'VLA field "{}" must be the last field in message "{}"'
-                    .format(b.fieldname, name))
+                    f'VLA field "{b.fieldname}" must be the last field in message "{name}"'
+                )
+
         elif b.fieldtype.startswith('vl_api_'):
             if global_types[b.fieldtype].vla:
                 vla = True
                 if i + 1 < len(block):
                     raise ValueError(
-                        'VLA field "{}" must be the last '
-                        'field in message "{}"'
-                        .format(b.fieldname, name))
+                        f'VLA field "{b.fieldname}" must be the last field in message "{name}"'
+                    )
+
         elif b.fieldtype == 'string' and b.length == 0:
             vla = True
             if i + 1 < len(block):
                 raise ValueError(
-                    'VLA field "{}" must be the last '
-                    'field in message "{}"'
-                    .format(b.fieldname, name))
+                    f'VLA field "{b.fieldname}" must be the last field in message "{name}"'
+                )
+
     return vla
 
 
@@ -340,9 +339,8 @@ class Define(Processable):
         block = [Field('u32', 'context'),
                  Field('i32', 'retval')]
         # inherit the parent's options
-        for k, v in parent.options.items():
-            block.append(Option(k, v))
-        return Define(name + '_reply', [], block)
+        block.extend(Option(k, v) for k, v in parent.options.items())
+        return Define(f'{name}_reply', [], block)
 
     def process(self, result):  # -> Dict
         tname = self.__class__.__name__
@@ -375,8 +373,6 @@ class Enum(Processable):
                 count += 1
             block2.append([b['id'], count])
             try:
-                if b['option']['backwards_compatible']:
-                    pass
                 bc_set = True
             except KeyError:
                 block3.append([b['id'], count])
@@ -519,9 +515,7 @@ class Paths(Processable):
         self.paths = pathset
 
     def __repr__(self):
-        return "%s(paths=%s)" % (
-            self.__class__.__name__, self.paths
-        )
+        return f"{self.__class__.__name__}(paths={self.paths})"
 
 
 class Coord:
@@ -538,9 +532,9 @@ class Coord:
         self.column = column
 
     def __str__(self):
-        str = "%s:%s" % (self.file, self.line)
+        str = f"{self.file}:{self.line}"
         if self.column:
-            str += ":%s" % self.column
+            str += f":{self.column}"
         return str
 
 
@@ -561,11 +555,11 @@ class VPPAPIParser:
         self.revision = revision
 
     def _parse_error(self, msg, coord):
-        raise ParseError("%s: %s" % (coord, msg))
+        raise ParseError(f"{coord}: {msg}")
 
     def _parse_warning(self, msg, coord):
         if self.logger:
-            self.logger.warning("%s: %s" % (coord, msg))
+            self.logger.warning(f"{coord}: {msg}")
 
     def _coord(self, lineno, column=None):
         return Coord(
@@ -586,10 +580,7 @@ class VPPAPIParser:
     def p_slist(self, p):
         '''slist : stmt
                  | slist stmt'''
-        if len(p) == 2:
-            p[0] = [p[1]]
-        else:
-            p[0] = p[1] + [p[2]]
+        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[2]]
 
     def p_stmt(self, p):
         '''stmt : define
@@ -614,10 +605,7 @@ class VPPAPIParser:
         if len(p) == 2:
             p[0] = p[1]
         else:
-            if type(p[1]) is dict:
-                p[0] = [p[1], p[2]]
-            else:
-                p[0] = p[1] + [p[2]]
+            p[0] = [p[1], p[2]] if type(p[1]) is dict else p[1] + [p[2]]
 
     def p_path_element(self, p):
         '''path_element : STRING_LITERAL STRING_LITERAL ';' '''
@@ -637,10 +625,7 @@ class VPPAPIParser:
         if len(p) == 2:
             p[0] = [p[1]]
         else:
-            if type(p[1]) is dict:
-                p[0] = [p[1], p[2]]
-            else:
-                p[0] = p[1] + [p[2]]
+            p[0] = [p[1], p[2]] if type(p[1]) is dict else p[1] + [p[2]]
 
     def p_counter_element(self, p):
         '''counter_element : ID '{' counter_statements '}' ';' '''
@@ -649,10 +634,7 @@ class VPPAPIParser:
     def p_counter_statements(self, p):
         '''counter_statements : counter_statement
                         | counter_statements counter_statement'''
-        if len(p) == 2:
-            p[0] = p[1]
-        else:
-            p[0] = {**p[1], **p[2]}
+        p[0] = p[1] if len(p) == 2 else {**p[1], **p[2]}
 
     def p_counter_statement(self, p):
         '''counter_statement : SEVERITY ID ';'
@@ -668,10 +650,7 @@ class VPPAPIParser:
     def p_service_statements(self, p):
         '''service_statements : service_statement
                         | service_statements service_statement'''
-        if len(p) == 2:
-            p[0] = [p[1]]
-        else:
-            p[0] = p[1] + [p[2]]
+        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[2]]
 
     def p_service_statement(self, p):
         '''service_statement : RPC ID RETURNS NULL ';'
@@ -681,8 +660,10 @@ class VPPAPIParser:
         if p[2] == p[4]:
             # Verify that caller and reply differ
             self._parse_error(
-                'Reply ID ({}) should not be equal to Caller ID'.format(p[2]),
-                self._token_coord(p, 1))
+                f'Reply ID ({p[2]}) should not be equal to Caller ID',
+                self._token_coord(p, 1),
+            )
+
         if len(p) == 8:
             p[0] = Service(p[2], p[4], p[6])
         elif len(p) == 7:
@@ -697,10 +678,7 @@ class VPPAPIParser:
     def p_event_list(self, p):
         '''event_list : events
                       | event_list events '''
-        if len(p) == 2:
-            p[0] = [p[1]]
-        else:
-            p[0] = p[1] + [p[2]]
+        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[2]]
 
     def p_event(self, p):
         '''events : ID
@@ -713,10 +691,7 @@ class VPPAPIParser:
 
     def p_enum_type(self, p):
         ''' enum : ENUM ID ':' enum_size '{' enum_statements '}' ';' '''
-        if len(p) == 9:
-            p[0] = Enum(p[2], p[6], enumtype=p[4])
-        else:
-            p[0] = Enum(p[2], p[4])
+        p[0] = Enum(p[2], p[6], enumtype=p[4]) if len(p) == 9 else Enum(p[2], p[4])
 
     def p_enumflag(self, p):
         '''enumflag : ENUMFLAG ID '{' enum_statements '}' ';' '''
@@ -753,19 +728,18 @@ class VPPAPIParser:
         '''define : flist DEFINE ID '{' block_statements_opt '}' ';' '''
         # Legacy typedef
         if 'typeonly' in p[1]:
-            self._parse_error('legacy typedef. use typedef: {} {}[{}];'
-                              .format(p[1], p[2], p[4]),
-                              self._token_coord(p, 1))
+            self._parse_error(
+                f'legacy typedef. use typedef: {p[1]} {p[2]}[{p[4]}];',
+                self._token_coord(p, 1),
+            )
+
         else:
             p[0] = Define(p[3], p[1], p[5])
 
     def p_flist(self, p):
         '''flist : flag
                  | flist flag'''
-        if len(p) == 2:
-            p[0] = [p[1]]
-        else:
-            p[0] = p[1] + [p[2]]
+        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[2]]
 
     def p_flag(self, p):
         '''flag : MANUAL_PRINT
@@ -801,10 +775,7 @@ class VPPAPIParser:
     def p_block_statements(self, p):
         '''block_statements : block_statement
                             | block_statements block_statement'''
-        if len(p) == 2:
-            p[0] = [p[1]]
-        else:
-            p[0] = p[1] + [p[2]]
+        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[2]]
 
     def p_block_statement(self, p):
         '''block_statement : declaration
@@ -814,10 +785,7 @@ class VPPAPIParser:
     def p_enum_statements(self, p):
         '''enum_statements : enum_statement
                            | enum_statements enum_statement'''
-        if len(p) == 2:
-            p[0] = [p[1]]
-        else:
-            p[0] = p[1] + [p[2]]
+        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[2]]
 
     def p_enum_statement(self, p):
         '''enum_statement : ID '=' NUM ','
@@ -838,10 +806,7 @@ class VPPAPIParser:
     def p_field_options(self, p):
         '''field_options : field_option
                            | field_options field_option'''
-        if len(p) == 2:
-            p[0] = p[1]
-        else:
-            p[0] = {**p[1], **p[2]}
+        p[0] = p[1] if len(p) == 2 else {**p[1], **p[2]}
 
     def p_field_option(self, p):
         '''field_option : ID
@@ -849,10 +814,7 @@ class VPPAPIParser:
                         | ID '=' assignee
 
         '''
-        if len(p) == 2:
-            p[0] = {p[1]: None}
-        else:
-            p[0] = {p[1]: p[3]}
+        p[0] = {p[1]: None} if len(p) == 2 else {p[1]: p[3]}
 
     def p_variable_name(self, p):
         '''variable_name : ID
@@ -885,31 +847,29 @@ class VPPAPIParser:
                        | type_specifier variable_name '[' ID ']' ';' '''
 
         if len(p) != 7:
-            return self._parse_error(
-                'array: %s' % p.value,
-                self._coord(lineno=p.lineno))
+            return self._parse_error(f'array: {p.value}', self._coord(lineno=p.lineno))
 
         # Make this error later
         if type(p[4]) is int and p[4] == 0:
             # XXX: Line number is wrong
-            self._parse_warning('Old Style VLA: {} {}[{}];'
-                                .format(p[1], p[2], p[4]),
-                                self._token_coord(p, 1))
+            self._parse_warning(
+                f'Old Style VLA: {p[1]} {p[2]}[{p[4]}];', self._token_coord(p, 1)
+            )
+
 
         if type(p[4]) is str and p[4] not in self.fields:
             # Verify that length field exists
-            self._parse_error('Missing length field: {} {}[{}];'
-                              .format(p[1], p[2], p[4]),
-                              self._token_coord(p, 1))
+            self._parse_error(
+                f'Missing length field: {p[1]} {p[2]}[{p[4]}];',
+                self._token_coord(p, 1),
+            )
+
         p[0] = Array(p[1], p[2], p[4])
 
     def p_option(self, p):
         '''option : OPTION ID '=' assignee ';'
                   | OPTION ID ';' '''
-        if len(p) == 4:
-            p[0] = Option(p[2])
-        else:
-            p[0] = Option(p[2], p[4])
+        p[0] = Option(p[2]) if len(p) == 4 else Option(p[2], p[4])
 
     def p_assignee(self, p):
         '''assignee : NUM
@@ -936,8 +896,7 @@ class VPPAPIParser:
     def p_typedef_specifier(self, p):
         '''type_specifier : ID '''
         if p[1] not in global_types:
-            self._parse_error('Undefined type: {}'.format(p[1]),
-                              self._token_coord(p, 1))
+            self._parse_error(f'Undefined type: {p[1]}', self._token_coord(p, 1))
         p[0] = p[1]
 
     def p_union(self, p):
@@ -951,9 +910,7 @@ class VPPAPIParser:
     # Error rule for syntax errors
     def p_error(self, p):
         if p:
-            self._parse_error(
-                'before: %s' % p.value,
-                self._coord(lineno=p.lineno))
+            self._parse_error(f'before: {p.value}', self._coord(lineno=p.lineno))
         else:
             self._parse_error('At end of input', self.filename)
 
@@ -979,13 +936,12 @@ class VPPAPI():
 
     def parse_filename(self, filename, debug=0):
         if self.revision:
-            git_show = 'git show {}:{}'.format(self.revision, filename)
+            git_show = f'git show {self.revision}:{filename}'
             proc = Popen(git_show.split(), stdout=PIPE, encoding='utf-8')
             try:
                 data, errs = proc.communicate()
                 if proc.returncode != 0:
-                    print('File not found: {}:{}'
-                          .format(self.revision, filename), file=sys.stderr)
+                    print(f'File not found: {self.revision}:{filename}', file=sys.stderr)
                     sys.exit(2)
                 return self.parse_string(data, debug=debug)
             except Exception:
@@ -995,18 +951,20 @@ class VPPAPI():
                 with open(filename, encoding='utf-8') as fd:
                     return self.parse_fd(fd, None)
             except FileNotFoundError:
-                print('File not found: {}'.format(filename), file=sys.stderr)
+                print(f'File not found: {filename}', file=sys.stderr)
                 sys.exit(2)
 
     def process(self, objs):
-        s = {}
-        s['Option'] = {}
-        s['Define'] = []
-        s['Service'] = []
-        s['types'] = []
-        s['Import'] = []
-        s['Counters'] = []
-        s['Paths'] = []
+        s = {
+            'Option': {},
+            'Define': [],
+            'Service': [],
+            'types': [],
+            'Import': [],
+            'Counters': [],
+            'Paths': [],
+        }
+
         crc = 0
         for o in objs:
             try:
@@ -1028,24 +986,28 @@ class VPPAPI():
 
         s['file_crc'] = crc
 
-        for service in svcs:
+        for service, value in svcs.items():
             if service not in msgs:
                 raise ValueError(
-                    'Service definition refers to unknown message'
-                    ' definition: {}'.format(service))
-            if svcs[service].reply != 'null' and \
-               svcs[service].reply not in msgs:
-                raise ValueError('Service definition refers to unknown message'
-                                 ' definition in reply: {}'
-                                 .format(svcs[service].reply))
+                    f'Service definition refers to unknown message definition: {service}'
+                )
+
+            if value.reply != 'null' and svcs[service].reply not in msgs:
+                raise ValueError(
+                    f'Service definition refers to unknown message definition in reply: {svcs[service].reply}'
+                )
+
             if service in replies:
-                raise ValueError('Service definition refers to message'
-                                 ' marked as reply: {}'.format(service))
+                raise ValueError(
+                    f'Service definition refers to message marked as reply: {service}'
+                )
+
             for event in svcs[service].events:
                 if event not in msgs:
-                    raise ValueError('Service definition refers to unknown '
-                                     'event: {} in message: {}'
-                                     .format(event, service))
+                    raise ValueError(
+                        f'Service definition refers to unknown event: {event} in message: {service}'
+                    )
+
                 seen_services[event] = True
 
         # Create services implicitly
@@ -1056,39 +1018,35 @@ class VPPAPI():
                 if d[:-6] in svcs:
                     continue
                 if d[:-6] not in msgs:
-                    raise ValueError('{} missing calling message'
-                                     .format(d))
+                    raise ValueError(f'{d} missing calling message')
                 continue
             if d.endswith('_dump'):
                 if d in svcs:
                     continue
-                if d[:-5]+'_details' in msgs:
-                    s['Service'].append(Service(d, d[:-5]+'_details',
-                                                stream=True))
+                if f'{d[:-5]}_details' in msgs:
+                    s['Service'].append(Service(d, f'{d[:-5]}_details', stream=True))
                 else:
-                    raise ValueError('{} missing details message'
-                                     .format(d))
+                    raise ValueError(f'{d} missing details message')
                 continue
 
             if d.endswith('_details'):
-                if d[:-8]+'_get' in msgs:
-                    if d[:-8]+'_get' in svcs:
+                if f'{d[:-8]}_get' in msgs:
+                    if f'{d[:-8]}_get' in svcs:
                         continue
-                    raise ValueError('{} should be in a stream service'
-                                     .format(d[:-8]+'_get'))
-                if d[:-8]+'_dump' in msgs:
+                    raise ValueError(f'{d[:-8]}_get should be in a stream service')
+                if f'{d[:-8]}_dump' in msgs:
                     continue
-                raise ValueError('{} missing dump or get message'
-                                 .format(d))
+                raise ValueError(f'{d} missing dump or get message')
 
             if d in svcs:
                 continue
-            if d+'_reply' in msgs:
-                s['Service'].append(Service(d, d+'_reply'))
+            if f'{d}_reply' in msgs:
+                s['Service'].append(Service(d, f'{d}_reply'))
             else:
                 raise ValueError(
-                    '{} missing reply message ({}) or service definition'
-                    .format(d, d+'_reply'))
+                    f'{d} missing reply message ({d}_reply) or service definition'
+                )
+
 
         return s
 
@@ -1197,23 +1155,20 @@ def main():
     # Default path
     pluginpath = ''
     if not args.pluginpath:
-        cand = []
-        cand.append(os.path.dirname(os.path.realpath(__file__)))
+        cand = [os.path.dirname(os.path.realpath(__file__))]
         cand.append(os.path.dirname(os.path.realpath(__file__)) +
                     '/../share/vpp/')
         for c in cand:
             c += '/'
-            if os.path.isfile('{}vppapigen_{}.py'
-                              .format(c, args.output_module.lower())):
+            if os.path.isfile(f'{c}vppapigen_{args.output_module.lower()}.py'):
                 pluginpath = c
                 break
     else:
-        pluginpath = args.pluginpath + '/'
+        pluginpath = f'{args.pluginpath}/'
     if pluginpath == '':
         log.exception('Output plugin not found')
         return 1
-    module_path = '{}vppapigen_{}.py'.format(pluginpath,
-                                             args.output_module.lower())
+    module_path = f'{pluginpath}vppapigen_{args.output_module.lower()}.py'
 
     try:
         plugin = SourceFileLoader(args.output_module,
@@ -1227,10 +1182,12 @@ def main():
                     revision=args.git_revision)
 
     try:
-        if not args.input:
-            parsed_objects = parser.parse_fd(sys.stdin, log)
-        else:
-            parsed_objects = parser.parse_filename(args.input, log)
+        parsed_objects = (
+            parser.parse_filename(args.input, log)
+            if args.input
+            else parser.parse_fd(sys.stdin, log)
+        )
+
     except ParseError as e:
         print('Parse error: ', e, file=sys.stderr)
         sys.exit(1)
@@ -1268,8 +1225,7 @@ def main():
         for t in s['types']:
             pp.pprint([t.name, t.block])
 
-    result = plugin.run(args, filename, s)
-    if result:
+    if result := plugin.run(args, filename, s):
         print(result, file=args.output)
     else:
         log.exception('Running plugin failed: %s %s', filename, result)

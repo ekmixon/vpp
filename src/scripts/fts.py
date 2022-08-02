@@ -57,29 +57,21 @@ schema = {
 
 
 def filelist_from_git_status():
-    filelist = []
     git_status = 'git status --porcelain */FEATURE*.yaml'
     rv = run(git_status.split(), stdout=PIPE, stderr=PIPE)
     if rv.returncode != 0:
         sys.exit(rv.returncode)
 
-    for l in rv.stdout.decode('ascii').split('\n'):
-        if len(l):
-            filelist.append(l.split()[1])
-    return filelist
+    return [l.split()[1] for l in rv.stdout.decode('ascii').split('\n') if len(l)]
 
 
 def filelist_from_git_ls():
-    filelist = []
     git_ls = 'git ls-files :(top)*/FEATURE*.yaml'
     rv = run(git_ls.split(), stdout=PIPE, stderr=PIPE)
     if rv.returncode != 0:
         sys.exit(rv.returncode)
 
-    for l in rv.stdout.decode('ascii').split('\n'):
-        if len(l):
-            filelist.append(l)
-    return filelist
+    return [l for l in rv.stdout.decode('ascii').split('\n') if len(l)]
 
 def version_from_git():
     git_describe = 'git describe'
@@ -198,15 +190,16 @@ def output_markdown(features, fields, notfields):
                   '/'.join(os.path.normpath(path).split('/')[1:-1])
         featuredef['code'] = codeurl
         for k, v in sorted(featuredef.items(), key=featurelistsort):
-            if notfields:
-                if k not in notfields:
-                    m.print(k, v)
-            elif fields:
-                if k in fields:
-                    m.print(k, v)
-            else:
+            if (
+                notfields
+                and k not in notfields
+                or not notfields
+                and fields
+                and k in fields
+                or not notfields
+                and not fields
+            ):
                 m.print(k, v)
-
     tocstream = StringIO()
     output_toc(m.toc, tocstream)
     return tocstream, stream
@@ -236,15 +229,8 @@ def main():
     else:
         filelist = args.infile
 
-    if args.include:
-        fields = args.include.split(',')
-    else:
-        fields = []
-    if args.exclude:
-        notfields = args.exclude.split(',')
-    else:
-        notfields = []
-
+    fields = args.include.split(',') if args.include else []
+    notfields = args.exclude.split(',') if args.exclude else []
     for featurefile in filelist:
         featurefile = featurefile.rstrip()
 

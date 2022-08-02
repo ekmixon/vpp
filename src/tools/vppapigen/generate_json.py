@@ -19,13 +19,19 @@ import subprocess
 BASE_DIR = subprocess.check_output('git rev-parse --show-toplevel',
                                    shell=True).strip().decode()
 vppapigen_bin = pathlib.Path(
-    '%s/src/tools/vppapigen/vppapigen.py' % BASE_DIR).as_posix()
+    f'{BASE_DIR}/src/tools/vppapigen/vppapigen.py'
+).as_posix()
+
 
 src_dir_depth = 3
 output_path = pathlib.Path(
-    '%s/build-root/install-vpp-native/vpp/share/vpp/api/' % BASE_DIR)
+    f'{BASE_DIR}/build-root/install-vpp-native/vpp/share/vpp/api/'
+)
+
 output_path_debug = pathlib.Path(
-    '%s/build-root/install-vpp_debug-native/vpp/share/vpp/api/' % BASE_DIR)
+    f'{BASE_DIR}/build-root/install-vpp_debug-native/vpp/share/vpp/api/'
+)
+
 
 output_dir_map = {
     'plugins': 'plugins',
@@ -39,13 +45,13 @@ output_dir_map = {
 def api_search_globs(src_dir):
     globs = []
     for g in output_dir_map:
-        globs.extend(list(src_dir.glob('%s/**/*.api' % g)))
+        globs.extend(list(src_dir.glob(f'{g}/**/*.api')))
     return globs
 
 
 def api_files(src_dir):
     print("Searching '%s' for .api files." % src_dir.as_posix())
-    return [x for x in api_search_globs(src_dir)]
+    return list(api_search_globs(src_dir))
 
 
 def vppapigen(vppapigen_bin, output_path, src_dir, src_file):
@@ -59,15 +65,19 @@ def vppapigen(vppapigen_bin, output_path, src_dir, src_file):
                      src_dir_depth + BASE_DIR.count('/') - 1]],
                  src_file.name)])
     except KeyError:
-        print('src_file: %s' % src_file)
+        print(f'src_file: {src_file}')
         raise
 
 
 def main():
     cliparser = argparse.ArgumentParser(
         description='VPP API JSON definition generator')
-    cliparser.add_argument('--srcdir', action='store',
-                           default='%s/src' % BASE_DIR),
+    (
+        cliparser.add_argument(
+            '--srcdir', action='store', default=f'{BASE_DIR}/src'
+        ),
+    )
+
     cliparser.add_argument('--output', action='store',
                            help='directory to store files'),
     cliparser.add_argument('--debug-target', action='store_true',
@@ -91,7 +101,7 @@ def main():
 
     for f in api_files(src_dir):
         vppapigen(vppapigen_bin, output_dir, src_dir, f)
-    print('json files written to: %s/.' % output_dir)
+    print(f'json files written to: {output_dir}/.')
 
 
 if __name__ == '__main__':

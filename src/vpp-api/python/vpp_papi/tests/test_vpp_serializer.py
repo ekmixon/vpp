@@ -168,11 +168,11 @@ class TestAddType(unittest.TestCase):
         self.assertEqual(str(nt), '2.2.2.2')
 
         # List of addresses
-        address_list = []
-        for i in range(4):
-            address_list.append({'af': af.ADDRESS_IP4,
-                                 'un':
-                                 {'ip4': inet_pton(AF_INET, '2.2.2.2')}})
+        address_list = [
+            {'af': af.ADDRESS_IP4, 'un': {'ip4': inet_pton(AF_INET, '2.2.2.2')}}
+            for _ in range(4)
+        ]
+
         b = va_address_list.pack({'count': len(address_list),
                                   'addresses': address_list})
         self.assertEqual(len(b), 81)
@@ -395,9 +395,7 @@ class TestAddType(unittest.TestCase):
                                    [['u8', 'foo'],
                                     ['ip4_address', 'addresses', 0]])
 
-        addresses = []
-        for i in range(4):
-            addresses.append({'address': inet_pton(AF_INET, '2.2.2.2')})
+        addresses = [{'address': inet_pton(AF_INET, '2.2.2.2')} for _ in range(4)]
         b = listip4.pack({'addresses': addresses})
         self.assertEqual(len(b), 16)
         nt, size = listip4.unpack(b)
@@ -481,10 +479,7 @@ class TestAddType(unittest.TestCase):
                             ['u32', 'via_label'],
                             ['u8', 'n_labels'],
                             ['vl_api_fib_mpls_label_t', 'label_stack', 16]])
-        label_stack_list = []
-        for i in range(16):
-            label_stack_list.append(label_stack)
-
+        label_stack_list = [label_stack for _ in range(16)]
         paths = {'is_udp_encap': 0,
                  'next_hop': b'\x10\x02\x02\xac',
                  'table_id': 0,

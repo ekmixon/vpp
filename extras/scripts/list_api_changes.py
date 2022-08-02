@@ -10,18 +10,19 @@ emit_md = True
 apifiles = []
 
 for root, dirnames, filenames in os.walk('.'):
-    for filename in fnmatch.filter(filenames, '*.api'):
-        apifiles.append(os.path.join(root, filename))
+    apifiles.extend(
+        os.path.join(root, filename)
+        for filename in fnmatch.filter(filenames, '*.api')
+    )
 
 for f in apifiles:
-    commits = subprocess.check_output(['git', 'log',
-                                       '--oneline', starttag + '..' + endtag,
-                                       f])
-    if commits:
-        if f[0:2] == './':
+    if commits := subprocess.check_output(
+        ['git', 'log', '--oneline', f'{starttag}..{endtag}', f]
+    ):
+        if f[:2] == './':
             f = f[2:]
         if emit_md:
-            print("| @c %s ||" % f)
+            print(f"| @c {f} ||")
             print("| ------- | ------- |")
             for line in commits.splitlines():
                 parts = line.strip().split()

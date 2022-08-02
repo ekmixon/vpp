@@ -62,7 +62,7 @@ class Siphon(object):
 
     def __init__(self, template_directory, format):
         super(Siphon, self).__init__()
-        self.log = logging.getLogger("siphon.process.%s" % self.name)
+        self.log = logging.getLogger(f"siphon.process.{self.name}")
 
         # Get our output format details
         fmt_klass = formats[format]

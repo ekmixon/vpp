@@ -5,6 +5,7 @@ crcchecker is a tool to used to enforce that .api messages do not change.
 API files with a semantic version < 1.0.0 are ignored.
 '''
 
+
 import sys
 import os
 import json
@@ -14,7 +15,7 @@ from subprocess import run, PIPE, check_output, CalledProcessError
 
 # pylint: disable=subprocess-run-check
 
-ROOTDIR = os.path.dirname(os.path.realpath(__file__)) + '/../..'
+ROOTDIR = f'{os.path.dirname(os.path.realpath(__file__))}/../..'
 APIGENBIN = f'{ROOTDIR}/src/tools/vppapigen/vppapigen.py'
 
 
@@ -54,22 +55,18 @@ def dict_compare(dict1, dict2):
     removed = d2_keys - d1_keys
     modified = {o: (dict1[o], dict2[o]) for o in intersect_keys
                 if dict1[o]['crc'] != dict2[o]['crc']}
-    same = set(o for o in intersect_keys if dict1[o] == dict2[o])
+    same = {o for o in intersect_keys if dict1[o] == dict2[o]}
     return added, removed, modified, same
 
 
 def filelist_from_git_ls():
     '''Returns a list of all api files in the git repository'''
-    filelist = []
     git_ls = 'git ls-files *.api'
     returncode = run(git_ls.split(), stdout=PIPE, stderr=PIPE)
     if returncode.returncode != 0:
         sys.exit(returncode.returncode)
 
-    for line in returncode.stdout.decode('ascii').split('\n'):
-        if line:
-            filelist.append(line)
-    return filelist
+    return [line for line in returncode.stdout.decode('ascii').split('\n') if line]
 
 
 def is_uncommitted_changes():
@@ -79,9 +76,7 @@ def is_uncommitted_changes():
     if returncode.returncode != 0:
         sys.exit(returncode.returncode)
 
-    if returncode.stdout:
-        return True
-    return False
+    return bool(returncode.stdout)
 
 
 def filelist_from_git_grep(filename):
@@ -216,14 +211,13 @@ def check_patchset():
         _ = crc_from_apigen(None, filename)
         # Ignore removed files
         if isinstance(_, set) == 0:
-            if isinstance(_, set) == 0 and _['_version']['major'] == '0':
+            if _['_version']['major'] == '0':
                 continue
-            newcrcs.update(_)
+            newcrcs |= _
 
-        oldcrcs.update(crc_from_apigen(revision, filename))
+        oldcrcs |= crc_from_apigen(revision, filename)
 
-    backwards_incompatible = report(newcrcs, oldcrcs)
-    if backwards_incompatible:
+    if backwards_incompatible := report(newcrcs, oldcrcs):
         # alert on changing production API
         print("crcchecker: Changing production APIs in an incompatible way",
               file=sys.stderr)
@@ -262,10 +256,10 @@ def main():
 
     # Dump CRC for messages in given files / revision
     if args.dump_manifest:
-        files = args.files if args.files else filelist_from_git_ls()
+        files = args.files or filelist_from_git_ls()
         crcs = {}
         for filename in files:
-            crcs.update(crc_from_apigen(args.git_revision, filename))
+            crcs |= crc_from_apigen(args.git_revision, filename)
         for k, value in crcs.items():
             print(f'{k}: {value}')
         sys.exit(0)
@@ -284,15 +278,15 @@ def main():
 
     # Find changes between current workspace and revision
     # Find changes between a given file and a revision
-    files = args.files if args.files else filelist_from_git_ls()
+    files = args.files or filelist_from_git_ls()
 
-    revision = args.git_revision if args.git_revision else 'HEAD~1'
+    revision = args.git_revision or 'HEAD~1'
 
     oldcrcs = {}
     newcrcs = {}
     for file in files:
-        newcrcs.update(crc_from_apigen(None, file))
-        oldcrcs.update(crc_from_apigen(revision, file))
+        newcrcs |= crc_from_apigen(None, file)
+        oldcrcs |= crc_from_apigen(revision, file)
 
     backwards_incompatible = report(newcrcs, oldcrcs)
 

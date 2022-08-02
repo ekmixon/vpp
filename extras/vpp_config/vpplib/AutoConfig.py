@@ -90,12 +90,12 @@ class AutoConfig(object):
         """
 
         # Does a copy of the file exist, if not create one
-        ofile = filename + '.orig'
-        (ret, stdout, stderr) = VPPUtil.exec_command('ls {}'.format(ofile))
+        ofile = f'{filename}.orig'
+        (ret, stdout, stderr) = VPPUtil.exec_command(f'ls {ofile}')
         if ret != 0:
             logging.debug(stderr)
             if stdout.strip('\n') != ofile:
-                cmd = 'sudo cp {} {}'.format(filename, ofile)
+                cmd = f'sudo cp {filename} {ofile}'
                 (ret, stdout, stderr) = VPPUtil.exec_command(cmd)
                 if ret != 0:
                     logging.debug(stderr)
@@ -121,7 +121,7 @@ class AutoConfig(object):
                 else:
                     answer = input("Please enter the netmask [n.n.n.n]: ")
                     plen = ip_address(answer).netmask_bits()
-                return '{}/{}'.format(ipaddr, plen)
+                return f'{ipaddr}/{plen}'
             except ValueError:
                 print("Please enter a valid IPv4 address.")
 
@@ -152,11 +152,9 @@ class AutoConfig(object):
                 if int(answer) in range(first, last + 1):
                     break
                 else:
-                    print("Please a value between {} and {} or Return.".
-                          format(first, last))
+                    print(f"Please a value between {first} and {last} or Return.")
             else:
-                print("Please a number between {} and {} or Return.".
-                      format(first, last))
+                print(f"Please a number between {first} and {last} or Return.")
 
         return int(answer)
 
@@ -203,8 +201,9 @@ class AutoConfig(object):
                     self._metadata = topo['metadata']
             except yaml.YAMLError as exc:
                 raise RuntimeError(
-                    "Couldn't read the Auto config file {}.".format(
-                        self._autoconfig_filename, exc))
+                    f"Couldn't read the Auto config file {self._autoconfig_filename}."
+                )
+
 
         systemfile = self._rootdir + self._metadata['system_config_file']
         if self._clean is False and os.path.isfile(systemfile):
@@ -214,13 +213,9 @@ class AutoConfig(object):
                     if 'nodes' in systopo:
                         self._nodes = systopo['nodes']
                 except yaml.YAMLError as sysexc:
-                    raise RuntimeError(
-                        "Couldn't read the System config file {}.".format(
-                            systemfile, sysexc))
-        else:
-            # Get the nodes from Auto Config
-            if 'nodes' in topo:
-                self._nodes = topo['nodes']
+                    raise RuntimeError(f"Couldn't read the System config file {systemfile}.")
+        elif 'nodes' in topo:
+            self._nodes = topo['nodes']
 
         # Set the root directory in all the nodes
         for i in self._nodes.items():
@@ -272,29 +267,29 @@ class AutoConfig(object):
                 interface = item[1]
 
                 node['interfaces'][port] = {}
-                addr = '{}'.format(interface['pci_address'])
+                addr = f"{interface['pci_address']}"
                 node['interfaces'][port]['pci_address'] = addr
                 if 'mac_address' in interface:
                     node['interfaces'][port]['mac_address'] = \
-                        interface['mac_address']
+                            interface['mac_address']
 
             if 'total_other_cpus' in self._nodes[key]['cpu']:
                 node['cpu']['total_other_cpus'] = \
-                    self._nodes[key]['cpu']['total_other_cpus']
+                        self._nodes[key]['cpu']['total_other_cpus']
             if 'total_vpp_cpus' in self._nodes[key]['cpu']:
                 node['cpu']['total_vpp_cpus'] = \
-                    self._nodes[key]['cpu']['total_vpp_cpus']
+                        self._nodes[key]['cpu']['total_vpp_cpus']
             if 'reserve_vpp_main_core' in self._nodes[key]['cpu']:
                 node['cpu']['reserve_vpp_main_core'] = \
-                    self._nodes[key]['cpu']['reserve_vpp_main_core']
+                        self._nodes[key]['cpu']['reserve_vpp_main_core']
 
             # TCP
             if 'active_open_sessions' in self._nodes[key]['tcp']:
                 node['tcp']['active_open_sessions'] = \
-                    self._nodes[key]['tcp']['active_open_sessions']
+                        self._nodes[key]['tcp']['active_open_sessions']
             if 'passive_open_sessions' in self._nodes[key]['tcp']:
                 node['tcp']['passive_open_sessions'] = \
-                    self._nodes[key]['tcp']['passive_open_sessions']
+                        self._nodes[key]['tcp']['passive_open_sessions']
 
             # Huge pages
             node['hugepages']['total'] = self._nodes[key]['hugepages']['total']
@@ -331,7 +326,7 @@ class AutoConfig(object):
         else:
             vpp_main_core = 0
         if vpp_main_core != 0:
-            cpu += '  main-core {}\n'.format(vpp_main_core)
+            cpu += f'  main-core {vpp_main_core}\n'
 
         # Get workers
         vpp_workers = node['cpu']['vpp_workers']
@@ -342,11 +337,11 @@ class AutoConfig(object):
                 if i > 0:
                     vpp_worker_str += ','
                 if worker[0] == worker[1]:
-                    vpp_worker_str += "{}".format(worker[0])
+                    vpp_worker_str += f"{worker[0]}"
                 else:
-                    vpp_worker_str += "{}-{}".format(worker[0], worker[1])
+                    vpp_worker_str += f"{worker[0]}-{worker[1]}"
 
-            cpu += '  corelist-workers {}\n'.format(vpp_worker_str)
+            cpu += f'  corelist-workers {vpp_worker_str}\n'
 
         return cpu
 
@@ -362,6 +357,9 @@ class AutoConfig(object):
         devices = ''
         ports_per_numa = node['cpu']['ports_per_numa']
 
+        num_rx_desc = None
+        num_tx_desc = None
+
         for item in ports_per_numa.items():
             value = item[1]
             interfaces = value['interfaces']
@@ -374,25 +372,22 @@ class AutoConfig(object):
             if 'tx_queues' in value:
                 num_tx_queues = value['tx_queues']
 
-            num_rx_desc = None
-            num_tx_desc = None
-
             # Create the devices string
             for interface in interfaces:
                 pci_address = interface['pci_address']
                 pci_address = pci_address.lstrip("'").rstrip("'")
                 devices += '\n'
-                devices += '  dev {} {{ \n'.format(pci_address)
+                devices += f'  dev {pci_address} {{ \n'
                 if num_rx_queues:
-                    devices += '    num-rx-queues {}\n'.format(num_rx_queues)
+                    devices += f'    num-rx-queues {num_rx_queues}\n'
                 else:
-                    devices += '    num-rx-queues {}\n'.format(1)
+                    devices += f'    num-rx-queues 1\n'
                 if num_tx_queues:
-                    devices += '    num-tx-queues {}\n'.format(num_tx_queues)
+                    devices += f'    num-tx-queues {num_tx_queues}\n'
                 if num_rx_desc:
-                    devices += '    num-rx-desc {}\n'.format(num_rx_desc)
+                    devices += f'    num-rx-desc {num_rx_desc}\n'
                 if num_tx_desc:
-                    devices += '    num-tx-desc {}\n'.format(num_tx_desc)
+                    devices += f'    num-tx-desc {num_tx_desc}\n'
                 devices += '  }'
 
         return devices
@@ -409,9 +404,9 @@ class AutoConfig(object):
         total_mbufs = node['cpu']['total_mbufs']
 
         # If the total mbufs is not 0 or less than the default, set num-bufs
-        logging.debug("Total mbufs: {}".format(total_mbufs))
+        logging.debug(f"Total mbufs: {total_mbufs}")
         if total_mbufs != 0 and total_mbufs > 16384:
-            buffers += '  buffers-per-numa {}'.format(total_mbufs)
+            buffers += f'  buffers-per-numa {total_mbufs}'
 
         return buffers
 
@@ -495,9 +490,9 @@ class AutoConfig(object):
         # Get the descriptor entries
         desc_entries = 1024
         ports_per_numa_value['rx_queues'] = rx_queues
-        total_mbufs = ((rx_queues * desc_entries) + (tx_queues * desc_entries)) * total_ports_per_numa
-
-        return total_mbufs
+        return (
+            (rx_queues * desc_entries) + (tx_queues * desc_entries)
+        ) * total_ports_per_numa
 
     @staticmethod
     def _create_ports_per_numa(node, interfaces):
@@ -517,9 +512,7 @@ class AutoConfig(object):
             i = item[1]
             if i['numa_node'] not in ports_per_numa:
                 ports_per_numa[i['numa_node']] = {'interfaces': []}
-                ports_per_numa[i['numa_node']]['interfaces'].append(i)
-            else:
-                ports_per_numa[i['numa_node']]['interfaces'].append(i)
+            ports_per_numa[i['numa_node']]['interfaces'].append(i)
         node['cpu']['ports_per_numa'] = ports_per_numa
 
         return ports_per_numa
@@ -530,6 +523,8 @@ class AutoConfig(object):
 
         """
 
+        # Get the number of cpus to skip, we never use the first cpu
+        other_cpus_start = 1
         # Calculate the cpu parameters, needed for the
         # vpp_startup and grub configuration
         for i in self._nodes.items():
@@ -541,8 +536,6 @@ class AutoConfig(object):
             # Make a list of ports by numa node
             ports_per_numa = self._create_ports_per_numa(node, interfaces)
 
-            # Get the number of cpus to skip, we never use the first cpu
-            other_cpus_start = 1
             other_cpus_end = other_cpus_start + node['cpu']['total_other_cpus'] - 1
             other_workers = None
             if other_cpus_end != 0:
@@ -636,18 +629,18 @@ class AutoConfig(object):
         if aos > 0:
             tcp = tcp + "  v4-halfopen-table-buckets {:d}".format(
                 (aos + pos) // 4) + "\n"
-            tcp = tcp + "  v4-halfopen-table-memory 3g\n"
+            tcp += "  v4-halfopen-table-memory 3g\n"
             tcp = tcp + "  local-endpoints-table-buckets {:d}".format(
                 (aos + pos) // 4) + "\n"
-            tcp = tcp + "  local-endpoints-table-memory 3g\n"
-        tcp = tcp + "}\n\n"
+            tcp += "  local-endpoints-table-memory 3g\n"
+        tcp += "}\n\n"
 
-        tcp = tcp + "tcp {\n"
+        tcp += "tcp {\n"
         tcp = tcp + "  preallocated-connections {:d}".format(aos + pos) + "\n"
         if aos > 0:
             tcp = tcp + "  preallocated-half-open-connections {:d}".format(
                 aos) + "\n"
-        tcp = tcp + "}\n\n"
+        tcp += "}\n\n"
 
         return tcp.rstrip('\n')
 
@@ -680,27 +673,23 @@ class AutoConfig(object):
             self._autoconfig_backup_file(sfile)
 
             # Get the template
-            tfile = sfile + '.template'
-            (ret, stdout, stderr) = \
-                VPPUtil.exec_command('cat {}'.format(tfile))
+            tfile = f'{sfile}.template'
+            (ret, stdout, stderr) = VPPUtil.exec_command(f'cat {tfile}')
             if ret != 0:
-                raise RuntimeError('Executing cat command failed to node {}'.
-                                   format(node['host']))
+                raise RuntimeError(f"Executing cat command failed to node {node['host']}")
             startup = stdout.format(cpu=cpu,
                                     buffers=buffers,
                                     devices=devices,
                                     tcp=tcp)
 
-            (ret, stdout, stderr) = \
-                VPPUtil.exec_command('rm {}'.format(sfile))
+            (ret, stdout, stderr) = VPPUtil.exec_command(f'rm {sfile}')
             if ret != 0:
                 logging.debug(stderr)
 
             cmd = "sudo cat > {0} << EOF\n{1}\n".format(sfile, startup)
             (ret, stdout, stderr) = VPPUtil.exec_command(cmd)
             if ret != 0:
-                raise RuntimeError('Writing config failed node {}'.
-                                   format(node['host']))
+                raise RuntimeError(f"Writing config failed node {node['host']}")
 
     def apply_grub_cmdline(self):
         """
@@ -731,9 +720,9 @@ class AutoConfig(object):
                 if idx > 0:
                     isolated_cpus += ','
                 if worker[0] == worker[1]:
-                    isolated_cpus += "{}".format(worker[0])
+                    isolated_cpus += f"{worker[0]}"
                 else:
-                    isolated_cpus += "{}-{}".format(worker[0], worker[1])
+                    isolated_cpus += f"{worker[0]}-{worker[1]}"
 
             vppgrb = VppGrubUtil(node)
             current_cmdline = vppgrb.get_current_cmdline()
@@ -741,7 +730,7 @@ class AutoConfig(object):
                 node['grub'] = {}
             node['grub']['current_cmdline'] = current_cmdline
             node['grub']['default_cmdline'] = \
-                vppgrb.apply_cmdline(node, isolated_cpus)
+                    vppgrb.apply_cmdline(node, isolated_cpus)
 
         self.updateconfig()
 
@@ -795,11 +784,7 @@ class AutoConfig(object):
                     else:
                         first = int(isocpuspl[0])
                         second = int(isocpuspl[1])
-                        if first == second:
-                            current_iso_cpus += 1
-                        else:
-                            current_iso_cpus += second - first
-
+                        current_iso_cpus += 1 if first == second else second - first
             if 'grub' not in node:
                 node['grub'] = {}
             node['grub']['current_cmdline'] = current_cmdline
@@ -859,8 +844,7 @@ class AutoConfig(object):
         cmd = 'lscpu -p'
         (ret, stdout, stderr) = VPPUtil.exec_command(cmd)
         if ret != 0:
-            raise RuntimeError('{} failed on node {} {}'.
-                               format(cmd, node['host'], stderr))
+            raise RuntimeError(f"{cmd} failed on node {node['host']} {stderr}")
 
         pcpus = []
         lines = stdout.split('\n')
@@ -932,8 +916,10 @@ class AutoConfig(object):
         :type numa_nodes: list
         """
 
-        print("\nYour system has {} core(s) and {} Numa Nodes.".
-              format(total_cpus, len(numa_nodes)))
+        print(
+            f"\nYour system has {total_cpus} core(s) and {len(numa_nodes)} Numa Nodes."
+        )
+
         print("To begin, we suggest not reserving any cores for "
               "VPP or other processes.")
         print("Then to improve performance start reserving cores and "
@@ -944,24 +930,23 @@ class AutoConfig(object):
         max_vpp_cpus = min(total_cpus, 4)
         total_vpp_cpus = 0
         if max_vpp_cpus > 0:
-            question = "\nHow many core(s) shall we reserve for " \
-                       "VPP [0-{}][0]? ".format(max_vpp_cpus)
+            question = f"\nHow many core(s) shall we reserve for VPP [0-{max_vpp_cpus}][0]? "
+
             total_vpp_cpus = self._ask_user_range(question, 0, max_vpp_cpus, 0)
             node['cpu']['total_vpp_cpus'] = total_vpp_cpus
 
         total_other_cpus = 0
         max_other_cores = total_cpus - total_vpp_cpus
         if max_other_cores > 0:
-            question = 'How many core(s) do you want to reserve for ' \
-                       'processes other than VPP? [0-{}][0]? '. format(str(max_other_cores))
+            question = f'How many core(s) do you want to reserve for processes other than VPP? [0-{str(max_other_cores)}][0]? '
+
             total_other_cpus = self._ask_user_range(question, 0, max_other_cores, 0)
             node['cpu']['total_other_cpus'] = total_other_cpus
 
         max_main_cpus = total_cpus - total_vpp_cpus - total_other_cpus
         reserve_vpp_main_core = False
         if max_main_cpus > 0:
-            question = "Should we reserve 1 core for the VPP Main thread? "
-            question += "[y/N]? "
+            question = "Should we reserve 1 core for the VPP Main thread? " + "[y/N]? "
             answer = self._ask_user_yn(question, 'n')
             if answer == 'y':
                 reserve_vpp_main_core = True
@@ -969,7 +954,7 @@ class AutoConfig(object):
             node['cpu']['vpp_main_core'] = 0
 
         question = "How many RX queues per port shall we use for " \
-                   "VPP [1-4][1]? ".format(max_vpp_cpus)
+                       "VPP [1-4][1]? ".format(max_vpp_cpus)
         total_rx_queues = self._ask_user_range(question, 1, 4, 1)
         node['cpu']['total_rx_queues'] = total_rx_queues
 
@@ -984,6 +969,9 @@ class AutoConfig(object):
         # Get the CPU layout
         CpuUtils.get_cpu_layout_from_all_nodes(self._nodes)
 
+        # Assume the number of cpus per slice is always the same as the
+        # first slice
+        first_node = '0'
         for i in self._nodes.items():
             node = i[1]
             total_cpus = 0
@@ -993,9 +981,6 @@ class AutoConfig(object):
             cores = []
             cpu_layout = self.get_cpu_layout(node)
 
-            # Assume the number of cpus per slice is always the same as the
-            # first slice
-            first_node = '0'
             for cpu in cpu_layout:
                 if cpu['node'] != first_node:
                     break
@@ -1049,30 +1034,31 @@ class AutoConfig(object):
             print("\nThese device(s) are currently NOT being used "
                   "by VPP or the OS.\n")
             VppPCIUtil.show_vpp_devices(other_devices, show_interfaces=False)
-            question = "\nWould you like to give any of these devices"
-            question += " back to the OS [Y/n]? "
+            question = (
+                "\nWould you like to give any of these devices"
+                + " back to the OS [Y/n]? "
+            )
+
             answer = self._ask_user_yn(question, 'Y')
             if answer == 'y':
                 vppd = {}
                 for dit in other_devices.items():
                     dvid = dit[0]
                     device = dit[1]
-                    question = "Would you like to use device {} for". \
-                        format(dvid)
+                    question = f"Would you like to use device {dvid} for"
                     question += " the OS [y/N]? "
                     answer = self._ask_user_yn(question, 'n')
-                    if answer == 'y':
-                        if 'unused' in device and len(
-                                device['unused']) != 0 and \
-                                device['unused'][0] != '':
-                            driver = device['unused'][0]
-                            ret = VppPCIUtil.bind_vpp_device(
-                                node, driver, dvid)
-                            if ret:
-                                logging.debug(
-                                    'Could not bind device {}'.format(dvid))
-                            else:
-                                vppd[dvid] = device
+                    if (
+                        answer == 'y'
+                        and 'unused' in device
+                        and len(device['unused']) != 0
+                        and device['unused'][0] != ''
+                    ):
+                        driver = device['unused'][0]
+                        if ret := VppPCIUtil.bind_vpp_device(node, driver, dvid):
+                            logging.debug(f'Could not bind device {dvid}')
+                        else:
+                            vppd[dvid] = device
                 for dit in vppd.items():
                     dvid = dit[0]
                     device = dit[1]
@@ -1091,8 +1077,7 @@ class AutoConfig(object):
                 for dit in other_devices.items():
                     dvid = dit[0]
                     device = dit[1]
-                    question = "Would you like to use device {} ".format(dvid)
-                    question += "for VPP [y/N]? "
+                    question = f"Would you like to use device {dvid} " + "for VPP [y/N]? "
                     answer = self._ask_user_yn(question, 'n')
                     if answer == 'y':
                         vppd[dvid] = device
@@ -1100,15 +1085,11 @@ class AutoConfig(object):
                     dvid = dit[0]
                     device = dit[1]
                     if 'unused' in device and len(device['unused']) != 0 and \
-                            device['unused'][0] != '':
+                                device['unused'][0] != '':
                         driver = device['unused'][0]
-                        logging.debug(
-                            'Binding device {} to driver {}'.format(dvid,
-                                                                    driver))
-                        ret = VppPCIUtil.bind_vpp_device(node, driver, dvid)
-                        if ret:
-                            logging.debug(
-                                'Could not bind device {}'.format(dvid))
+                        logging.debug(f'Binding device {dvid} to driver {driver}')
+                        if ret := VppPCIUtil.bind_vpp_device(node, driver, dvid):
+                            logging.debug(f'Could not bind device {dvid}')
                         else:
                             dpdk_devices[dvid] = device
                             del other_devices[dvid]
@@ -1168,15 +1149,14 @@ class AutoConfig(object):
                 print("\nThese devices are safe to be used with VPP.\n")
                 VppPCIUtil.show_vpp_devices(kernel_devices)
                 question = "\nWould you like to use any of these " \
-                           "device(s) for VPP [y/N]? "
+                               "device(s) for VPP [y/N]? "
                 answer = self._ask_user_yn(question, 'n')
                 if answer == 'y':
                     vppd = {}
                     for dit in kernel_devices.items():
                         dvid = dit[0]
                         device = dit[1]
-                        question = "Would you like to use device {} ".format(dvid)
-                        question += "for VPP [y/N]? "
+                        question = f"Would you like to use device {dvid} " + "for VPP [y/N]? "
                         answer = self._ask_user_yn(question, 'n')
                         if answer == 'y':
                             vppd[dvid] = device
@@ -1186,13 +1166,14 @@ class AutoConfig(object):
                         if 'unused' in device and len(
                                 device['unused']) != 0 and device['unused'][0] != '':
                             driver = device['unused'][0]
-                            question = "Would you like to bind the driver {} for {} [y/N]? ".format(driver, dvid)
+                            question = f"Would you like to bind the driver {driver} for {dvid} [y/N]? "
                             answer = self._ask_user_yn(question, 'n')
                             if answer == 'y':
-                                logging.debug('Binding device {} to driver {}'.format(dvid, driver))
-                                ret = VppPCIUtil.bind_vpp_device(node, driver, dvid)
-                                if ret:
-                                    logging.debug('Could not bind device {}'.format(dvid))
+                                logging.debug(f'Binding device {dvid} to driver {driver}')
+                                if ret := VppPCIUtil.bind_vpp_device(
+                                    node, driver, dvid
+                                ):
+                                    logging.debug(f'Could not bind device {dvid}')
                         dpdk_devices[dvid] = device
                         del kernel_devices[dvid]
 
@@ -1201,16 +1182,14 @@ class AutoConfig(object):
                 print("\nThese device(s) are already using DPDK.\n")
                 VppPCIUtil.show_vpp_devices(dpdk_devices,
                                             show_interfaces=False)
-                question = "\nWould you like to remove any of "
-                question += "these device(s) [y/N]? "
+                question = "\nWould you like to remove any of " + "these device(s) [y/N]? "
                 answer = self._ask_user_yn(question, 'n')
                 if answer == 'y':
                     vppdl = {}
                     for dit in dpdk_devices.items():
                         dvid = dit[0]
                         device = dit[1]
-                        question = "Would you like to remove {} [y/N]? ". \
-                            format(dvid)
+                        question = f"Would you like to remove {dvid} [y/N]? "
                         answer = self._ask_user_yn(question, 'n')
                         if answer == 'y':
                             vppdl[dvid] = device
@@ -1220,14 +1199,11 @@ class AutoConfig(object):
                         if 'unused' in device and len(
                                 device['unused']) != 0 and device['unused'][0] != '':
                             driver = device['unused'][0]
-                            logging.debug(
-                                'Binding device {} to driver {}'.format(
-                                    dvid, driver))
-                            ret = VppPCIUtil.bind_vpp_device(node, driver,
-                                                             dvid)
-                            if ret:
-                                logging.debug(
-                                    'Could not bind device {}'.format(dvid))
+                            logging.debug(f'Binding device {dvid} to driver {driver}')
+                            if ret := VppPCIUtil.bind_vpp_device(
+                                node, driver, dvid
+                            ):
+                                logging.debug(f'Could not bind device {dvid}')
                             else:
                                 kernel_devices[dvid] = device
                                 del dpdk_devices[dvid]
@@ -1259,19 +1235,17 @@ class AutoConfig(object):
             # The max number of huge pages should be no more than
             # 70% of total free memory
             maxpages = (int(memfree) * MAX_PERCENT_FOR_HUGE_PAGES // 100) // hugesize
-            print("\nThere currently {} {} huge pages free.".format(
-                free, size))
+            print(f"\nThere currently {free} {size} huge pages free.")
             question = "Do you want to reconfigure the number of " \
-                       "huge pages [y/N]? "
+                           "huge pages [y/N]? "
             answer = self._ask_user_yn(question, 'n')
             if answer == 'n':
                 node['hugepages']['total'] = total
                 continue
 
-            print("\nThere currently a total of {} huge pages.".
-                  format(total))
-            question = "How many huge pages do you want [{} - {}][{}]? ". \
-                format(MIN_TOTAL_HUGE_PAGES, maxpages, MIN_TOTAL_HUGE_PAGES)
+            print(f"\nThere currently a total of {total} huge pages.")
+            question = f"How many huge pages do you want [{MIN_TOTAL_HUGE_PAGES} - {maxpages}][{MIN_TOTAL_HUGE_PAGES}]? "
+
             answer = self._ask_user_range(question, 1024, maxpages, 1024)
             node['hugepages']['total'] = str(answer)
 
@@ -1299,7 +1273,7 @@ class AutoConfig(object):
             node = i[1]
 
             question = "\nHow many active-open / tcp client sessions are " \
-                       "expected [0-10000000][0]? "
+                           "expected [0-10000000][0]? "
             answer = self._ask_user_range(question, 0, 10000000, 0)
             # Less than 10K is equivalent to 0
             if int(answer) < 10000:
@@ -1307,7 +1281,7 @@ class AutoConfig(object):
             node['tcp']['active_open_sessions'] = answer
 
             question = "How many passive-open / tcp server sessions are " \
-                       "expected [0-10000000][0]? "
+                           "expected [0-10000000][0]? "
             answer = self._ask_user_range(question, 0, 10000000, 0)
             # Less than 10K is equivalent to 0
             if int(answer) < 10000:
@@ -1329,7 +1303,7 @@ class AutoConfig(object):
         :type node: dict
         """
 
-        print('\nWe are patching the node "{}":\n'.format(node['host']))
+        print(f"""\nWe are patching the node "{node['host']}":\n""")
         QemuUtils.build_qemu(node, force_install=True, apply_patch=True)
 
     @staticmethod
@@ -1357,11 +1331,9 @@ class AutoConfig(object):
         if item in cpu:
             print("{:>20}:    {}".format(item, cpu[item]))
         item = 'NUMA node(s)'
-        numa_nodes = 0
-        if item in cpu:
-            numa_nodes = int(cpu[item])
-        for i in range(0, numa_nodes):
-            item = "NUMA node{} CPU(s)".format(i)
+        numa_nodes = int(cpu[item]) if item in cpu else 0
+        for i in range(numa_nodes):
+            item = f"NUMA node{i} CPU(s)"
             print("{:>20}:    {}".format(item, cpu[item]))
         item = 'CPU max MHz'
         if item in cpu:
@@ -1370,10 +1342,7 @@ class AutoConfig(object):
         if item in cpu:
             print("{:>20}:    {}".format(item, cpu[item]))
 
-        if node['cpu']['smt_enabled']:
-            smt = 'Enabled'
-        else:
-            smt = 'Disabled'
+        smt = 'Enabled' if node['cpu']['smt_enabled'] else 'Disabled'
         print("{:>20}:    {}".format('SMT', smt))
 
         # VPP Threads
@@ -1392,7 +1361,7 @@ class AutoConfig(object):
         if 'cpu' in node and 'total_mbufs' in node['cpu']:
             total_mbufs = node['cpu']['total_mbufs']
             if total_mbufs != 0:
-                print("Total Number of Buffers: {}".format(total_mbufs))
+                print(f"Total Number of Buffers: {total_mbufs}")
 
         vpp = VppPCIUtil(node)
         vpp.get_all_devices()
@@ -1476,10 +1445,7 @@ class AutoConfig(object):
 
         :returns: boolean
         """
-        if 'interfaces' in node and len(node['interfaces']):
-            return True
-        else:
-            return False
+        return bool('interfaces' in node and len(node['interfaces']))
 
     @staticmethod
     def min_system_resources(node):
@@ -1496,14 +1462,16 @@ class AutoConfig(object):
         if 'layout' in node['cpu']:
             total_cpus = len(node['cpu']['layout'])
             if total_cpus < 2:
-                print("\nThere is only {} CPU(s) available on this system. "
-                      "This is not enough to run VPP.".format(total_cpus))
+                print(
+                    f"\nThere is only {total_cpus} CPU(s) available on this system. This is not enough to run VPP."
+                )
+
                 min_sys_res = False
 
         # System Memory
         if 'free' in node['hugepages'] and \
-                'memfree' in node['hugepages'] and \
-                'size' in node['hugepages']:
+                    'memfree' in node['hugepages'] and \
+                    'size' in node['hugepages']:
             free = node['hugepages']['free']
             memfree = float(node['hugepages']['memfree'].split(' ')[0])
             hugesize = float(node['hugepages']['size'].split(' ')[0])
@@ -1511,7 +1479,7 @@ class AutoConfig(object):
             memhugepages = MIN_TOTAL_HUGE_PAGES * hugesize
             percentmemhugepages = (memhugepages / memfree) * 100
             if free is '0' and \
-                    percentmemhugepages > MAX_PERCENT_FOR_HUGE_PAGES:
+                        percentmemhugepages > MAX_PERCENT_FOR_HUGE_PAGES:
                 print(
                     "\nThe System has only {} of free memory. You will not "
                     "be able to allocate enough Huge Pages for VPP.".format(

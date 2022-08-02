@@ -70,10 +70,11 @@ class Generate(object):
         self.output = {}
         for siphon in self.known_siphons:
             self.output[siphon] = {
-                    "file": "%s/%s.siphon" % (output_directory, siphon),
-                    "global": {},
-                    "items": [],
-                }
+                "file": f"{output_directory}/{siphon}.siphon",
+                "global": {},
+                "items": [],
+            }
+
 
         self.input_prefix = input_prefix
 
@@ -88,7 +89,7 @@ class Generate(object):
     current depth
     """
     def count_braces(self, str, count=0, found=False):
-        for index in range(0, len(str)):
+        for index in range(len(str)):
             if str[index] == '{':
                 count += 1;
                 found = True
@@ -106,22 +107,22 @@ class Generate(object):
     def parse(self, filename):
         # Strip the current directory off the start of the
         # filename for brevity
-        if filename[0:len(self.input_prefix)] == self.input_prefix:
+        if filename[: len(self.input_prefix)] == self.input_prefix:
             filename = filename[len(self.input_prefix):]
             if filename[0] == "/":
                 filename = filename[1:]
 
         # Work out the abbreviated directory name
         directory = os.path.dirname(filename)
-        if directory[0:2] == "./":
+        if directory[:2] == "./":
             directory = directory[2:]
-        elif directory[0:len(self.input_prefix)] == self.input_prefix:
+        elif directory[: len(self.input_prefix)] == self.input_prefix:
             directory = directory[len(self.input_prefix):]
         if directory[0] == "/":
             directory = directory[1:]
 
         # Open the file and explore its contents...
-        self.log.info("Siphoning from %s." % filename)
+        self.log.info(f"Siphoning from {filename}.")
         directives = {}
         with open(filename) as fd:
             siphon = None
@@ -143,7 +144,7 @@ class Generate(object):
                         v = m.group(3).strip()
                         directives[k] = v
                         # Return only the parts we did not match
-                        return str[0:m.start(1)] + str[m.end(4):]
+                        return str[:m.start(1)] + str[m.end(4):]
 
                     return str
 
@@ -213,7 +214,7 @@ class Generate(object):
                             if m is not None:
                                 # count the braces on this line
                                 (count, index) = \
-                                    self.count_braces(str[m.start():])
+                                        self.count_braces(str[m.start():])
                                 siphon[2] = count
                                 # TODO - it's possible we have the
                                 # initializer all on the first line
@@ -278,12 +279,7 @@ class Generate(object):
                 if ':' not in key:
                     continue
 
-                if filename.endswith("/dir.dox"):
-                    # very special! use the parent directory name
-                    l = directory
-                else:
-                    l = filename
-
+                l = directory if filename.endswith("/dir.dox") else filename
                 (sn, label) = key.split(":")
 
                 if sn not in self.output:
@@ -298,7 +294,7 @@ class Generate(object):
     def deliver(self):
         # Write out the data
         for siphon in self.output.keys():
-            self.log.info("Saving siphon data %s." % siphon)
+            self.log.info(f"Saving siphon data {siphon}.")
             s = self.output[siphon]
             with open(s['file'], "a") as fp:
                 json.dump(s, fp,

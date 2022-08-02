@@ -94,19 +94,19 @@ def find_pattern(file_path,session_idx):
     idx = 0
     f = open(file_path, 'r')
     for line in f:
-      # skip listener lines (server)
-      if (re.search(listener_pattern, line) != None):
-        continue
-      match = re.search(initial_pattern, line)
-      if (match == None):
-        continue
-      if (idx < session_idx):
-        idx += 1
-        continue
-      filter_pattern = str(match.group(1)) + "\s+(.+)"
-      print ("pattern is %s" % filter_pattern)
-      f.close()
-      return filter_pattern
+        # skip listener lines (server)
+        if (re.search(listener_pattern, line) != None):
+          continue
+        match = re.search(initial_pattern, line)
+        if match is None:
+            continue
+        if (idx < session_idx):
+          idx += 1
+          continue
+        filter_pattern = str(match[1]) + "\s+(.+)"
+        print(f"pattern is {filter_pattern}")
+        f.close()
+        return filter_pattern
     raise Exception ("Could not find initial pattern")
 
 def compute_time(min, sec, msec):

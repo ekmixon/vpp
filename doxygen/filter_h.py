@@ -35,16 +35,13 @@ replace_patterns = [
 
 filename = sys.argv[1]
 cwd = os.getcwd()
-if filename[0:len(cwd)] == cwd:
+if filename[: len(cwd)] == cwd:
     filename = filename[len(cwd):]
     if filename[0] == "/":
         filename = filename[1:]
 
 with open(filename) as fd:
-    line_num = 0
-
     for line in fd:
-        line_num += 1
         str = line[:-1]  # filter \n
 
         # Look for search/replace patterns

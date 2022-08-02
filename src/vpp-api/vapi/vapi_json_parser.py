@@ -28,19 +28,11 @@ class Field(object):
 
     def __str__(self):
         if self.len is None:
-            return "Field(name: %s, type: %s)" % (self.name, self.type)
-        elif type(self.len) == dict:
-            return "Field(name: %s, type: %s, length: %s)" % (self.name,
-                                                              self.type,
-                                                              self.len)
-        elif self.len > 0:
-            return "Field(name: %s, type: %s, length: %s)" % (self.name,
-                                                              self.type,
-                                                              self.len)
+            return f"Field(name: {self.name}, type: {self.type})"
+        elif type(self.len) == dict or self.len > 0:
+            return f"Field(name: {self.name}, type: {self.type}, length: {self.len})"
         else:
-            return (
-                "Field(name: %s, type: %s, variable length stored in: %s)" %
-                (self.name, self.type, self.nelem_field))
+            return f"Field(name: {self.name}, type: {self.type}, variable length stored in: {self.nelem_field})"
 
     def is_vla(self):
         return self.nelem_field is not None
@@ -94,13 +86,10 @@ class Struct(object):
         self.depends = [f.type for f in self.fields]
 
     def __str__(self):
-        return "[%s]" % "], [".join([str(f) for f in self.fields])
+        return f'[{"], [".join([str(f) for f in self.fields])}]'
 
     def has_vla(self):
-        for f in self.fields:
-            if f.has_vla():
-                return True
-        return False
+        return any(f.has_vla() for f in self.fields)
 
 
 class Enum(SimpleType):
@@ -110,10 +99,7 @@ class Enum(SimpleType):
         self.value_pairs = value_pairs
 
     def __str__(self):
-        return "Enum(%s, [%s])" % (
-            self.name,
-            "], [" .join(["%s => %s" % (i, j) for i, j in self.value_pairs])
-        )
+        return f'Enum({self.name}, [{"], [" .join([f"{i} => {j}" for i, j in self.value_pairs])}])'
 
 
 class Union(Type):
@@ -124,10 +110,7 @@ class Union(Type):
         self.depends = [t for t, _ in self.type_pairs]
 
     def __str__(self):
-        return "Union(%s, [%s])" % (
-            self.name,
-            "], [" .join(["%s %s" % (i, j) for i, j in self.type_pairs])
-        )
+        return f'Union({self.name}, [{"], [" .join([f"{i} {j}" for i, j in self.type_pairs])}])'
 
     def has_vla(self):
         return False
@@ -176,7 +159,7 @@ class Message(object):
                     l -= 1
                 if l == 2:
                     if self.header is not None and\
-                            self.header.has_field(field[1]):
+                                self.header.has_field(field[1]):
                         continue
                     p = field_class(field_name=field[1],
                                     field_type=field_type)
@@ -218,7 +201,7 @@ class Message(object):
                 fields.append(p)
         self.fields = fields
         self.depends = [f.type for f in self.fields]
-        logger.debug("Parsed message: %s" % self)
+        logger.debug(f"Parsed message: {self}")
 
     def __str__(self):
         return "Message(%s, [%s], {crc: %s}" % \
@@ -274,8 +257,7 @@ class StructType (Type, Struct):
         Struct.__init__(self, name, fields)
 
     def __str__(self):
-        return "StructType(%s, %s)" % (Type.__str__(self),
-                                       Struct.__str__(self))
+        return f"StructType({Type.__str__(self)}, {Struct.__str__(self)})"
 
     def has_field(self, name):
         return name in self.field_names
@@ -359,7 +341,7 @@ class JsonParser(object):
                 enumtype = self.types[e[-1]["enumtype"]]
                 enum = self.enum_class(name, value_pairs, enumtype)
                 self.enums[enum.name] = enum
-                self.logger.debug("Parsed enum: %s" % enum)
+                self.logger.debug(f"Parsed enum: {enum}")
                 self.enums_by_json[path].append(enum)
             exceptions = []
             progress = 0
@@ -379,7 +361,7 @@ class JsonParser(object):
                         exceptions.append(e)
                         continue
                     self.unions[union.name] = union
-                    self.logger.debug("Parsed union: %s" % union)
+                    self.logger.debug(f"Parsed union: {union}")
                     self.unions_by_json[path].append(union)
                 for t in j['types']:
                     if t[0] in self.types:
@@ -398,15 +380,12 @@ class JsonParser(object):
                         continue
                     self.types[type_.name] = type_
                     self.types_by_json[path].append(type_)
-                    self.logger.debug("Parsed type: %s" % type_)
+                    self.logger.debug(f"Parsed type: {type_}")
                 for name, body in j['aliases'].items():
                     if name in self.aliases:
                         progress = progress + 1
                         continue
-                    if 'length' in body:
-                        array_len = body['length']
-                    else:
-                        array_len = None
+                    array_len = body['length'] if 'length' in body else None
                     try:
                         t = self.lookup_type_like_id(body['type'])
                     except ParseError as e:
@@ -414,7 +393,7 @@ class JsonParser(object):
                         continue
                     alias = self.alias_class(name, t, array_len)
                     self.aliases[name] = alias
-                    self.logger.debug("Parsed alias: %s" % alias)
+                    self.logger.debug(f"Parsed alias: {alias}")
                     self.aliases_by_json[path].append(alias)
                 if not exceptions:
                     # finished parsing
@@ -494,7 +473,7 @@ class JsonParser(object):
                             m.reply = self.get_reply(n)
                             if "stream" in self.services[m.name]:
                                 m.reply_is_stream = \
-                                    self.services[m.name]["stream"]
+                                        self.services[m.name]["stream"]
                             else:
                                 m.reply_is_stream = False
                             m.reply.request = m

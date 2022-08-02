@@ -49,7 +49,7 @@ class VPPUtil(object):
         :rtype: tuple(int, str, str)
         """
 
-        logging.info(" Local Command: {}".format(cmd))
+        logging.info(f" Local Command: {cmd}")
         out = ''
         err = ''
         prc = subprocess.Popen(cmd, shell=True, bufsize=1,
@@ -86,12 +86,12 @@ class VPPUtil(object):
         """
 
         # Does a copy of the file exist, if not create one
-        ofile = filename + '.orig'
-        (ret, stdout, stderr) = self.exec_command('ls {}'.format(ofile))
+        ofile = f'{filename}.orig'
+        (ret, stdout, stderr) = self.exec_command(f'ls {ofile}')
         if ret != 0:
             logging.debug(stderr)
             if stdout.strip('\n') != ofile:
-                cmd = 'sudo cp {} {}'.format(filename, ofile)
+                cmd = f'sudo cp {filename} {ofile}'
                 (ret, stdout, stderr) = self.exec_command(cmd)
                 if ret != 0:
                     logging.debug(stderr)
@@ -114,8 +114,10 @@ class VPPUtil(object):
         # Backup the sources list
         self._autoconfig_backup_file(sfile)
 
-        reps = 'deb [trusted=yes] https://packagecloud.io/fdio/'
-        reps += '{}/ubuntu {} main\n'.format(branch, ubuntu_version)
+        reps = (
+            'deb [trusted=yes] https://packagecloud.io/fdio/'
+            + f'{branch}/ubuntu {ubuntu_version} main\n'
+        )
 
         with open(sfile, 'w') as sfd:
             sfd.write(reps)
@@ -123,35 +125,27 @@ class VPPUtil(object):
 
         # Add the key
 
-        key = requests.get(
-            'https://packagecloud.io/fdio/{}/gpgkey'.format(branch))
-        cmd = 'echo "{}" | apt-key add -'.format(key.content.decode(key.encoding))
+        key = requests.get(f'https://packagecloud.io/fdio/{branch}/gpgkey')
+        cmd = f'echo "{key.content.decode(key.encoding)}" | apt-key add -'
         (ret, stdout, stderr) = self.exec_command(cmd)
         if ret != 0:
-            raise RuntimeError('{} failed on node {} {}'.format(
-                cmd,
-                node['host'],
-                stderr))
+            raise RuntimeError(f"{cmd} failed on node {node['host']} {stderr}")
 
         # Install the package
         cmd = 'apt-get -y update'
         (ret, stdout, stderr) = self.exec_command(cmd)
         if ret != 0:
-            raise RuntimeError('{} apt-get update failed on node {} {}'.format(
-                cmd,
-                node['host'],
-                stderr))
+            raise RuntimeError(
+                f"{cmd} apt-get update failed on node {node['host']} {stderr}"
+            )
+
 
         # Get the package list
-        pkgstr = ''
-        for ps in ubuntu_pkgs[branch]:
-            pkgstr += ps + ' '
-
-        cmd = 'apt-get -y install {}'.format(pkgstr)
+        pkgstr = ''.join(f'{ps} ' for ps in ubuntu_pkgs[branch])
+        cmd = f'apt-get -y install {pkgstr}'
         (ret, stdout, stderr) = self.exec_command(cmd)
         if ret != 0:
-            raise RuntimeError('{} failed on node {} {} {}'.format(
-                cmd, node['host'], stdout, stderr))
+            raise RuntimeError(f"{cmd} failed on node {node['host']} {stdout} {stderr}")
 
     def _install_vpp_centos(self, node, branch):
         """
@@ -167,18 +161,12 @@ class VPPUtil(object):
         cmd = 'yum -y update'
         (ret, stdout, stderr) = self.exec_command(cmd)
         if ret != 0:
-            logging.debug('{} failed on node {} {}'.format(
-                cmd,
-                node['host'],
-                stderr))
+            logging.debug(f"{cmd} failed on node {node['host']} {stderr}")
 
         cmd = 'yum -y install pygpgme yum-utils'
         (ret, stdout, stderr) = self.exec_command(cmd)
         if ret != 0:
-            logging.debug('{} failed on node {} {}'.format(
-                cmd,
-                node['host'],
-                stderr))
+            logging.debug(f"{cmd} failed on node {node['host']} {stderr}")
 
         # Modify the sources list
         sfile = '/etc/yum.repos.d/fdio-release.repo'
@@ -187,40 +175,38 @@ class VPPUtil(object):
         self._autoconfig_backup_file(sfile)
 
         # Remove the current file
-        cmd = 'rm {}'.format(sfile)
+        cmd = f'rm {sfile}'
         (ret, stdout, stderr) = self.exec_command(cmd)
         if ret != 0:
-            logging.debug('{} failed on node {} {}'.format(
-                cmd,
-                node['host'],
-                stderr))
+            logging.debug(f"{cmd} failed on node {node['host']} {stderr}")
 
         # Get the file contents
 
-        reps = '\n'.join([
-            '[fdio_{}]'.format(branch),
-            'name=fdio_{}'.format(branch),
-            'baseurl=https://packagecloud.io/fdio/{}/el/7/$basearch'.format(
-                branch),
-            'repo_gpgcheck=1',
-            'gpgcheck=0',
-            'enabled=1',
-            'gpgkey=https://packagecloud.io/fdio/{}/gpgkey'.format(branch),
-            'sslverify=1',
-            'sslcacert=/etc/pki/tls/certs/ca-bundle.crt',
-            'metadata_expire=300\n',
-            '[fdio_{}-source]'.format(branch),
-            'name=fdio_release-{}'.format(branch),
-            'baseurl=https://packagecloud.io/fdio/{}/el/7/SRPMS'.format(
-                branch),
-            'repo_gpgcheck=1',
-            'gpgcheck=0',
-            'enabled=1',
-            'gpgkey=https://packagecloud.io/fdio/{}/gpgkey'.format(branch),
-            'sslverify =1',
-            'sslcacert=/etc/pki/tls/certs/ca-bundle.crt',
-            'metadata_expire=300\n'
-        ])
+        reps = '\n'.join(
+            [
+                f'[fdio_{branch}]',
+                f'name=fdio_{branch}',
+                f'baseurl=https://packagecloud.io/fdio/{branch}/el/7/$basearch',
+                'repo_gpgcheck=1',
+                'gpgcheck=0',
+                'enabled=1',
+                f'gpgkey=https://packagecloud.io/fdio/{branch}/gpgkey',
+                'sslverify=1',
+                'sslcacert=/etc/pki/tls/certs/ca-bundle.crt',
+                'metadata_expire=300\n',
+                f'[fdio_{branch}-source]',
+                f'name=fdio_release-{branch}',
+                f'baseurl=https://packagecloud.io/fdio/{branch}/el/7/SRPMS',
+                'repo_gpgcheck=1',
+                'gpgcheck=0',
+                'enabled=1',
+                f'gpgkey=https://packagecloud.io/fdio/{branch}/gpgkey',
+                'sslverify =1',
+                'sslcacert=/etc/pki/tls/certs/ca-bundle.crt',
+                'metadata_expire=300\n',
+            ]
+        )
+
         with open(sfile, 'w') as sfd:
             sfd.write(reps)
             sfd.close()
@@ -229,30 +215,19 @@ class VPPUtil(object):
         cmd = 'yum clean all'
         (ret, stdout, stderr) = self.exec_command(cmd)
         if ret != 0:
-            logging.debug('{} failed on node {} {}'.format(
-                cmd,
-                node['host'],
-                stderr))
+            logging.debug(f"{cmd} failed on node {node['host']} {stderr}")
 
-        cmd = "yum -q makecache -y --disablerepo='*' " \
-              "--enablerepo='fdio_{}'".format(branch)
+        cmd = f"yum -q makecache -y --disablerepo='*' --enablerepo='fdio_{branch}'"
         (ret, stdout, stderr) = self.exec_command(cmd)
         if ret != 0:
-            logging.debug('{} failed on node {} {}'.format(
-                cmd,
-                node['host'],
-                stderr))
+            logging.debug(f"{cmd} failed on node {node['host']} {stderr}")
 
         # Get the package list
-        pkgstr = ''
-        for ps in centos_pkgs[branch]:
-            pkgstr += ps + ' '
-
-        cmd = 'yum -y install {}'.format(pkgstr)
+        pkgstr = ''.join(f'{ps} ' for ps in centos_pkgs[branch])
+        cmd = f'yum -y install {pkgstr}'
         (ret, stdout, stderr) = self.exec_command(cmd)
         if ret != 0:
-            raise RuntimeError('{} failed on node {} {} {}'.format(
-                cmd, node['host'], stdout, stderr))
+            raise RuntimeError(f"{cmd} failed on node {node['host']} {stdout} {stderr}")
 
     def install_vpp(self, node, branch):
         """
@@ -265,7 +240,7 @@ class VPPUtil(object):
 
         """
         distro = self.get_linux_distro()
-        logging.info("  {}".format(distro[0]))
+        logging.info(f"  {distro[0]}")
         if distro[0] == 'Ubuntu':
             logging.info("Install Ubuntu")
             self._install_vpp_ubuntu(node, branch, ubuntu_version=distro[2])
@@ -290,13 +265,12 @@ class VPPUtil(object):
         pkgs = self.get_installed_vpp_pkgs()
         for pkg in pkgs:
             pkgname = pkg['name']
-            pkgstr += pkgname + ' '
+            pkgstr += f'{pkgname} '
 
-        cmd = 'dpkg --purge {}'.format(pkgstr)
+        cmd = f'dpkg --purge {pkgstr}'
         (ret, stdout, stderr) = self.exec_command(cmd)
         if ret != 0:
-            raise RuntimeError('{} failed on node {} {} {}'.format(
-                cmd, node['host'], stdout, stderr))
+            raise RuntimeError(f"{cmd} failed on node {node['host']} {stdout} {stderr}")
 
     def _uninstall_vpp_centos(self, node):
         """
@@ -310,14 +284,13 @@ class VPPUtil(object):
         pkgs = self.get_installed_vpp_pkgs()
         for pkg in pkgs:
             pkgname = pkg['name']
-            pkgstr += pkgname + ' '
+            pkgstr += f'{pkgname} '
 
-        logging.info("Uninstalling {}".format(pkgstr))
-        cmd = 'yum -y remove {}'.format(pkgstr)
+        logging.info(f"Uninstalling {pkgstr}")
+        cmd = f'yum -y remove {pkgstr}'
         (ret, stdout, stderr) = self.exec_command(cmd)
         if ret != 0:
-            raise RuntimeError('{} failed on node {} {} {}'.format(
-                cmd, node['host'], stdout, stderr))
+            raise RuntimeError(f"{cmd} failed on node {node['host']} {stdout} {stderr}")
 
     def uninstall_vpp(self, node):
         """
@@ -351,22 +324,21 @@ class VPPUtil(object):
         settings for.
         :type additional_cmds: tuple
         """
-        def_setting_tb_displayed = {
-            'IPv6 FIB': 'ip6 fib',
-            'IPv4 FIB': 'ip fib',
-            'Interface IP': 'int addr',
-            'Interfaces': 'int',
-            'ARP': 'ip arp',
-            'Errors': 'err'
-        }
-
         if additional_cmds:
+            def_setting_tb_displayed = {
+                'IPv6 FIB': 'ip6 fib',
+                'IPv4 FIB': 'ip fib',
+                'Interface IP': 'int addr',
+                'Interfaces': 'int',
+                'ARP': 'ip arp',
+                'Errors': 'err'
+            }
+
             for cmd in additional_cmds:
-                def_setting_tb_displayed['Custom Setting: {}'.format(cmd)] \
-                    = cmd
+                def_setting_tb_displayed[f'Custom Setting: {cmd}'] = cmd
 
                 for _, value in def_setting_tb_displayed.items():
-                    self.exec_command('vppctl sh {}'.format(value))
+                    self.exec_command(f'vppctl sh {value}')
 
     @staticmethod
     def get_vms(node):
@@ -380,11 +352,9 @@ class VPPUtil(object):
         :rtype: dictionary
         """
 
-        vmdict = {}
-
         print("Need to implement get vms")
 
-        return vmdict
+        return {}
 
     @staticmethod
     def get_int_ip(node):
@@ -403,9 +373,8 @@ class VPPUtil(object):
             return interfaces
 
         lines = stdout.split('\n')
-        if len(lines[0]) != 0:
-            if lines[0].split(' ')[0] == 'FileNotFoundError':
-                return interfaces
+        if len(lines[0]) != 0 and lines[0].split(' ')[0] == 'FileNotFoundError':
+            return interfaces
 
         name = ''
         for line in lines:
@@ -419,8 +388,7 @@ class VPPUtil(object):
                 name = spl[0]
                 if name == 'local0':
                     continue
-                interfaces[name] = {}
-                interfaces[name]['state'] = spl[1].lstrip('(').rstrip('):\r')
+                interfaces[name] = {'state': spl[1].lstrip('(').rstrip('):\r')}
             else:
                 interfaces[name]['address'] = line.lstrip(' ').rstrip('\r')
 
@@ -445,9 +413,8 @@ class VPPUtil(object):
             return interfaces
 
         lines = stdout.split('\n')
-        if len(lines[0]) != 0:
-            if lines[0].split(' ')[0] == 'FileNotFoundError':
-                return interfaces
+        if len(lines[0]) != 0 and lines[0].split(' ')[0] == 'FileNotFoundError':
+            return interfaces
 
         for line in lines:
             if len(line) == 0:
@@ -458,42 +425,29 @@ class VPPUtil(object):
             if len(re.findall(r'\s', line[0])) == 0:
                 spl = line.split()
                 name = spl[0]
-                interfaces[name] = {}
-                interfaces[name]['index'] = spl[1]
-                interfaces[name]['state'] = spl[2]
-
-            # Ethernet address
-            rfall = re.findall(r'Ethernet address', line)
-            if rfall:
+                interfaces[name] = {'index': spl[1], 'state': spl[2]}
+            if rfall := re.findall(r'Ethernet address', line):
                 spl = line.split()
                 interfaces[name]['mac'] = spl[2]
 
-            # Carrier
-            rfall = re.findall(r'carrier', line)
-            if rfall:
+            if rfall := re.findall(r'carrier', line):
                 spl = line.split('carrier ')
                 interfaces[name]['carrier'] = spl[1]
 
             # Socket
             spl = ''
-            rfall = re.findall(r'numa \d+', line)
-            if rfall:
+            if rfall := re.findall(r'numa \d+', line):
                 spl = rfall[0].split()
                 interfaces[name]['numa'] = rfall[0].split()[1]
 
-            # Queues and Descriptors
-            rfall = re.findall(r'rx\: queues \d+', line)
-            if rfall:
+            if rfall := re.findall(r'rx\: queues \d+', line):
                 interfaces[name]['rx queues'] = rfall[0].split()[2]
-                rdesc = re.findall(r'desc \d+', line)
-                if rdesc:
+                if rdesc := re.findall(r'desc \d+', line):
                     interfaces[name]['rx descs'] = rdesc[0].split()[1]
 
-            rfall = re.findall(r'tx\: queues \d+', line)
-            if rfall:
+            if rfall := re.findall(r'tx\: queues \d+', line):
                 interfaces[name]['tx queues'] = rfall[0].split()[2]
-                rdesc = re.findall(r'desc \d+', line)
-                if rdesc:
+                if rdesc := re.findall(r'desc \d+', line):
                     interfaces[name]['tx descs'] = rdesc[0].split()[1]
 
         return interfaces
@@ -620,9 +574,7 @@ class VPPUtil(object):
         cmd = 'service vpp restart'
         (ret, stdout, stderr) = VPPUtil.exec_command(cmd)
         if ret != 0:
-            raise RuntimeError('{} failed on node {} {} {}'.
-                               format(cmd, node['host'],
-                                      stdout, stderr))
+            raise RuntimeError(f"{cmd} failed on node {node['host']} {stdout} {stderr}")
 
     @staticmethod
     def start(node):
@@ -637,9 +589,7 @@ class VPPUtil(object):
         cmd = 'service vpp start'
         (ret, stdout, stderr) = VPPUtil.exec_command(cmd)
         if ret != 0:
-            raise RuntimeError('{} failed on node {} {} {}'.
-                               format(cmd, node['host'],
-                                      stdout, stderr))
+            raise RuntimeError(f"{cmd} failed on node {node['host']} {stdout} {stderr}")
 
     @staticmethod
     def stop(node):
@@ -654,9 +604,7 @@ class VPPUtil(object):
         cmd = 'service vpp stop'
         (ret, stdout, stderr) = VPPUtil.exec_command(cmd)
         if ret != 0:
-            logging.debug('{} failed on node {} {} {}'.
-                          format(cmd, node['host'],
-                                 stdout, stderr))
+            logging.debug(f"{cmd} failed on node {node['host']} {stdout} {stderr}")
 
     # noinspection RegExpRedundantEscape
     @staticmethod
@@ -681,11 +629,7 @@ class VPPUtil(object):
 
         # Get the active status
         state = re.findall(r'Active:[\w (\)]+', stdout)[0].split(' ')
-        if len(state) > 2:
-            statestr = "{} {}".format(state[1], state[2])
-        else:
-            statestr = "Invalid"
-
+        statestr = f"{state[1]} {state[2]}" if len(state) > 2 else "Invalid"
         # For now we won't look for DPDK errors
         # lines = stdout.split('\n')
         # for line in lines:
@@ -708,12 +652,11 @@ class VPPUtil(object):
 
         dist = distro.linux_distribution()
         if dist[0] == 'Ubuntu' or \
-                dist[0] == 'CentOS Linux' or \
-                dist[:7] == 'Red Hat':
+                    dist[0] == 'CentOS Linux' or \
+                    dist[:7] == 'Red Hat':
             return dist
         else:
-            raise RuntimeError(
-                'Linux Distribution {} is not supported'.format(dist[0]))
+            raise RuntimeError(f'Linux Distribution {dist[0]} is not supported')
 
     @staticmethod
     def version():
@@ -732,9 +675,8 @@ class VPPUtil(object):
             return version
 
         lines = stdout.split('\n')
-        if len(lines[0]) != 0:
-            if lines[0].split(' ')[0] == 'FileNotFoundError':
-                return version
+        if len(lines[0]) != 0 and lines[0].split(' ')[0] == 'FileNotFoundError':
+            return version
 
         for line in lines:
             if len(line) == 0:
@@ -758,9 +700,7 @@ class VPPUtil(object):
         cmd = 'vppctl show bridge'
         (ret, stdout, stderr) = VPPUtil.exec_command(cmd)
         if ret != 0:
-            raise RuntimeError('{} failed on node {} {} {}'.
-                               format(cmd, node['host'],
-                                      stdout, stderr))
+            raise RuntimeError(f"{cmd} failed on node {node['host']} {stdout} {stderr}")
         lines = stdout.split('\r\n')
         bridges = []
         for line in lines:
@@ -775,12 +715,10 @@ class VPPUtil(object):
                 bridges.append(lspl[0])
 
         for bridge in bridges:
-            cmd = 'vppctl show bridge {} detail'.format(bridge)
+            cmd = f'vppctl show bridge {bridge} detail'
             (ret, stdout, stderr) = VPPUtil.exec_command(cmd)
             if ret != 0:
-                raise RuntimeError('{} failed on node {} {} {}'.
-                                   format(cmd, node['host'],
-                                          stdout, stderr))
+                raise RuntimeError(f"{cmd} failed on node {node['host']} {stdout} {stderr}")
 
         lines = stdout.split('\r\n')
         for line in lines:

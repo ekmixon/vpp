@@ -5,10 +5,7 @@ process_imports = True
 
 
 def walk_imports(s):
-    r = []
-    for e in s:
-        r.append(str(e))
-    return r
+    return [str(e) for e in s]
 
 
 def walk_counters(s, pathset):
@@ -17,20 +14,15 @@ def walk_counters(s, pathset):
         r2 = {'name': e.name, 'elements': e.block}
         r.append(r2)
 
-    r3 = []
-    for p in pathset:
-        r3.append(p.paths)
-
+    r3 = [p.paths for p in pathset]
     return r, r3
 
 
 def walk_enums(s):
     r = []
     for e in s:
-        d = []
-        d.append(e.name)
-        for b in e.block:
-            d.append(b)
+        d = [e.name]
+        d.extend(iter(e.block))
         d.append({'enumtype': e.enumtype})
         r.append(d)
     return r
@@ -53,8 +45,7 @@ def walk_services(s):
 def walk_defs(s, is_message=False):
     r = []
     for t in s:
-        d = []
-        d.append(t.name)
+        d = [t.name]
         for b in t.block:
             if b.type == 'Option':
                 continue
@@ -69,15 +60,11 @@ def walk_defs(s, is_message=False):
                               b.length, b.lengthfield])
                 else:
                     d.append([b.fieldtype, b.fieldname, b.length])
-            elif b.type == 'Union':
-                pass
-            else:
-                raise ValueError("Error in processing array type %s" % b)
+            elif b.type != 'Union':
+                raise ValueError(f"Error in processing array type {b}")
 
         if is_message and t.crc:
-            c = {}
-            c['crc'] = "{0:#0{1}x}".format(t.crc, 10)
-            c['options'] = t.options
+            c = {'crc': "{0:#0{1}x}".format(t.crc, 10), 'options': t.options}
             d.append(c)
 
         r.append(d)
@@ -88,10 +75,13 @@ def walk_defs(s, is_message=False):
 # Plugin entry point
 #
 def run(args, filename, s):
-    j = {}
+    j = {
+        'types': walk_defs(
+            [o for o in s['types'] if o.__class__.__name__ == 'Typedef']
+        )
+    }
 
-    j['types'] = (walk_defs([o for o in s['types']
-                             if o.__class__.__name__ == 'Typedef']))
+
     j['messages'] = walk_defs(s['Define'], True)
     j['unions'] = (walk_defs([o for o in s['types']
                               if o.__class__.__name__ == 'Union']))
@@ -103,6 +93,6 @@ def run(args, filename, s):
     j['options'] = s['Option']
     j['aliases'] = {o.name:o.alias for o in s['types'] if o.__class__.__name__ == 'Using'}
     j['vl_api_version'] = hex(s['file_crc'])
-    j['imports'] = walk_imports(i for i in s['Import'])
+    j['imports'] = walk_imports(iter(s['Import']))
     j['counters'], j['paths'] = walk_counters(s['Counters'], s['Paths'])
     return json.dumps(j, indent=4, separators=(',', ': '))

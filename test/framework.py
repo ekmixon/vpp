@@ -111,15 +111,15 @@ class VppDiedError(Exception):
         if testcase is None and method_name is None:
             in_msg = ''
         else:
-            in_msg = ' while running %s.%s' % (testcase, method_name)
+            in_msg = f' while running {testcase}.{method_name}'
 
         if self.rv:
             msg = "VPP subprocess died unexpectedly%s with return code: %d%s."\
-                % (in_msg, self.rv, ' [%s]' %
+                    % (in_msg, self.rv, ' [%s]' %
                    (self.signal_name if
                     self.signal_name is not None else ''))
         else:
-            msg = "VPP subprocess died unexpectedly%s." % in_msg
+            msg = f"VPP subprocess died unexpectedly{in_msg}."
 
         super(VppDiedError, self).__init__(msg)
 
@@ -167,7 +167,7 @@ def pump_output(testclass):
                 split = read.decode('ascii',
                                     errors='backslashreplace').splitlines(True)
                 if len(stdout_fragment) > 0:
-                    split[0] = "%s%s" % (stdout_fragment, split[0])
+                    split[0] = f"{stdout_fragment}{split[0]}"
                 if len(split) > 0 and split[-1].endswith("\n"):
                     limit = None
                 else:
@@ -184,7 +184,7 @@ def pump_output(testclass):
                 split = read.decode('ascii',
                                     errors='backslashreplace').splitlines(True)
                 if len(stderr_fragment) > 0:
-                    split[0] = "%s%s" % (stderr_fragment, split[0])
+                    split[0] = f"{stderr_fragment}{split[0]}"
                 if len(split) > 0 and split[-1].endswith("\n"):
                     limit = None
                 else:
@@ -229,15 +229,13 @@ running_gcov_tests = _running_gcov_tests()
 
 
 def get_environ_vpp_worker_count():
-    worker_config = os.getenv("VPP_WORKER_CONFIG", None)
-    if worker_config:
-        elems = worker_config.split(" ")
-        if elems[0] != "workers" or len(elems) != 2:
-            raise ValueError("Wrong VPP_WORKER_CONFIG == '%s' value." %
-                             worker_config)
-        return int(elems[1])
-    else:
+    if not (worker_config := os.getenv("VPP_WORKER_CONFIG", None)):
         return 0
+    elems = worker_config.split(" ")
+    if elems[0] != "workers" or len(elems) != 2:
+        raise ValueError("Wrong VPP_WORKER_CONFIG == '%s' value." %
+                         worker_config)
+    return int(elems[1])
 
 
 environ_vpp_worker_count = get_environ_vpp_worker_count()
@@ -272,7 +270,7 @@ class KeepAliveReporter(object):
             return
 
         if isclass(test):
-            desc = '%s (%s)' % (desc, unittest.util.strclass(test))
+            desc = f'{desc} ({unittest.util.strclass(test)})'
         else:
             desc = test.id()
 
@@ -382,15 +380,15 @@ class VppTestCase(CPUInterface, unittest.TestCase):
         dl = d.lower()
         if dl == "core":
             cls.debug_core = True
-        elif dl == "gdb" or dl == "gdb-all":
+        elif dl in ["gdb", "gdb-all"]:
             cls.debug_gdb = True
-        elif dl == "gdbserver" or dl == "gdbserver-all":
+        elif dl in ["gdbserver", "gdbserver-all"]:
             cls.debug_gdbserver = True
         elif dl == "attach":
             cls.debug_attach = True
         else:
             raise Exception("Unrecognized DEBUG option: '%s'" % d)
-        if dl == "gdb-all" or dl == "gdbserver-all":
+        if dl in ["gdb-all", "gdbserver-all"]:
             cls.debug_all = True
 
     @classmethod
@@ -412,7 +410,7 @@ class VppTestCase(CPUInterface, unittest.TestCase):
         cls.step = BoolEnvironmentVariable('STEP')
         # inverted case to handle '' == True
         c = os.getenv("CACHE_OUTPUT", "1")
-        cls.cache_vpp_output = False if c.lower() in ("n", "no", "0") else True
+        cls.cache_vpp_output = c.lower() not in ("n", "no", "0")
         cls.vpp_bin = os.getenv('VPP_BIN', "vpp")
         cls.plugin_path = os.getenv('VPP_PLUGIN_PATH')
         cls.test_plugin_path = os.getenv('VPP_TEST_PLUGIN_PATH')
@@ -420,8 +418,7 @@ class VppTestCase(CPUInterface, unittest.TestCase):
         plugin_path = None
         if cls.plugin_path is not None:
             if cls.extern_plugin_path is not None:
-                plugin_path = "%s:%s" % (
-                    cls.plugin_path, cls.extern_plugin_path)
+                plugin_path = f"{cls.plugin_path}:{cls.extern_plugin_path}"
             else:
                 plugin_path = cls.plugin_path
         elif cls.extern_plugin_path is not None:
@@ -429,10 +426,8 @@ class VppTestCase(CPUInterface, unittest.TestCase):
         debug_cli = ""
         if cls.step or cls.debug_gdb or cls.debug_gdbserver:
             debug_cli = "cli-listen localhost:5002"
-        coredump_size = None
         size = os.getenv("COREDUMP_SIZE")
-        if size is not None:
-            coredump_size = "coredump-size %s" % size
+        coredump_size = f"coredump-size {size}" if size is not None else None
         if coredump_size is None:
             coredump_size = "coredump-size unlimited"
 
@@ -478,8 +473,8 @@ class VppTestCase(CPUInterface, unittest.TestCase):
             cls.vpp_cmdline.extend(["test_plugin_path", cls.test_plugin_path])
 
         if not cls.debug_attach:
-            cls.logger.info("vpp_cmdline args: %s" % cls.vpp_cmdline)
-            cls.logger.info("vpp_cmdline: %s" % " ".join(cls.vpp_cmdline))
+            cls.logger.info(f"vpp_cmdline args: {cls.vpp_cmdline}")
+            cls.logger.info(f'vpp_cmdline: {" ".join(cls.vpp_cmdline)}')
 
     @classmethod
     def wait_for_enter(cls):
@@ -495,15 +490,21 @@ class VppTestCase(CPUInterface, unittest.TestCase):
         print(single_line_delim)
         print("You can debug VPP using:")
         if cls.debug_gdbserver:
-            print("sudo gdb " + cls.vpp_bin +
-                  " -ex 'target remote localhost:{port}'"
-                  .format(port=cls.gdbserver_port))
+            print(
+                (
+                    f"sudo gdb {cls.vpp_bin}"
+                    + " -ex 'target remote localhost:{port}'".format(
+                        port=cls.gdbserver_port
+                    )
+                )
+            )
+
             print("Now is the time to attach gdb by running the above "
                   "command, set up breakpoints etc., then resume VPP from "
                   "within gdb by issuing the 'continue' command")
             cls.gdbserver_port += 1
         elif cls.debug_gdb:
-            print("sudo gdb " + cls.vpp_bin + " -ex 'attach %s'" % cls.vpp.pid)
+            print(f"sudo gdb {cls.vpp_bin}" + " -ex 'attach %s'" % cls.vpp.pid)
             print("Now is the time to attach gdb by running the above "
                   "command and set up breakpoints etc., then resume VPP from"
                   " within gdb by issuing the 'continue' command")
@@ -551,7 +552,7 @@ class VppTestCase(CPUInterface, unittest.TestCase):
 
     @classmethod
     def wait_for_coredump(cls):
-        corefile = cls.tempdir + "/core"
+        corefile = f"{cls.tempdir}/core"
         if os.path.isfile(corefile):
             cls.logger.error("Waiting for coredump to complete: %s", corefile)
             curr_size = os.path.getsize(corefile)
@@ -573,11 +574,11 @@ class VppTestCase(CPUInterface, unittest.TestCase):
 
     @classmethod
     def get_stats_sock_path(cls):
-        return "%s/stats.sock" % cls.tempdir
+        return f"{cls.tempdir}/stats.sock"
 
     @classmethod
     def get_api_sock_path(cls):
-        return "%s/api.sock" % cls.tempdir
+        return f"{cls.tempdir}/api.sock"
 
     @classmethod
     def get_api_segment_prefix(cls):
@@ -589,7 +590,7 @@ class VppTestCase(CPUInterface, unittest.TestCase):
             return os.getenv("VPP_IN_GDB_TMP_DIR",
                              "/tmp/unittest-attach-gdb")
         else:
-            return tempfile.mkdtemp(prefix='vpp-unittest-%s-' % cls.__name__)
+            return tempfile.mkdtemp(prefix=f'vpp-unittest-{cls.__name__}-')
 
     @classmethod
     def setUpClass(cls):
@@ -607,13 +608,13 @@ class VppTestCase(CPUInterface, unittest.TestCase):
         d = os.getenv("DEBUG", None)
         cls.set_debug_flags(d)
         cls.tempdir = cls.get_tempdir()
-        cls.file_handler = FileHandler("%s/log.txt" % cls.tempdir)
+        cls.file_handler = FileHandler(f"{cls.tempdir}/log.txt")
         cls.file_handler.setFormatter(
             Formatter(fmt='%(asctime)s,%(msecs)03d %(message)s',
                       datefmt="%H:%M:%S"))
         cls.file_handler.setLevel(DEBUG)
         cls.logger.addHandler(cls.file_handler)
-        cls.logger.debug("--- setUpClass() for %s called ---" % cls.__name__)
+        cls.logger.debug(f"--- setUpClass() for {cls.__name__} called ---")
         os.chdir(cls.tempdir)
         cls.logger.info("Temporary dir is %s, api socket is %s",
                         cls.tempdir, cls.get_api_sock_path())
@@ -649,10 +650,7 @@ class VppTestCase(CPUInterface, unittest.TestCase):
                 cls.vapi_response_timeout = 0
             cls.vapi = VppPapiProvider(cls.__name__, cls,
                                        cls.vapi_response_timeout)
-            if cls.step:
-                hook = hookmodule.StepHook(cls)
-            else:
-                hook = hookmodule.PollHook(cls)
+            hook = hookmodule.StepHook(cls) if cls.step else hookmodule.PollHook(cls)
             cls.vapi.register_hook(hook)
             cls.statistics = VPPStats(socketname=cls.get_stats_sock_path())
             try:
@@ -666,7 +664,7 @@ class VppTestCase(CPUInterface, unittest.TestCase):
             try:
                 cls.vapi.connect()
             except (vpp_papi.VPPIOError, Exception) as e:
-                cls.logger.debug("Exception connecting to vapi: %s" % e)
+                cls.logger.debug(f"Exception connecting to vapi: {e}")
                 cls.vapi.disconnect()
 
                 if cls.debug_gdbserver:
@@ -677,13 +675,13 @@ class VppTestCase(CPUInterface, unittest.TestCase):
             if cls.debug_attach:
                 last_line = cls.vapi.cli("show thread").split("\n")[-2]
                 cls.vpp_worker_count = int(last_line.split(" ")[0])
-                print("Detected VPP with %s workers." % cls.vpp_worker_count)
+                print(f"Detected VPP with {cls.vpp_worker_count} workers.")
         except vpp_papi.VPPRuntimeError as e:
-            cls.logger.debug("%s" % e)
+            cls.logger.debug(f"{e}")
             cls.quit()
             raise e
         except Exception as e:
-            cls.logger.debug("Exception connecting to VPP: %s" % e)
+            cls.logger.debug(f"Exception connecting to VPP: {e}")
             cls.quit()
             raise e
 
@@ -749,19 +747,14 @@ class VppTestCase(CPUInterface, unittest.TestCase):
                 cls.vpp.stderr.close()
             del cls.vpp
 
-        if cls.vpp_startup_failed:
-            stdout_log = cls.logger.info
-            stderr_log = cls.logger.critical
-        else:
-            stdout_log = cls.logger.info
-            stderr_log = cls.logger.info
-
+        stdout_log = cls.logger.info
+        stderr_log = cls.logger.critical if cls.vpp_startup_failed else cls.logger.info
         if hasattr(cls, 'vpp_stdout_deque'):
             stdout_log(single_line_delim)
             stdout_log('VPP output to stdout while running %s:', cls.__name__)
             stdout_log(single_line_delim)
             vpp_output = "".join(cls.vpp_stdout_deque)
-            with open(cls.tempdir + '/vpp_stdout.txt', 'w') as f:
+            with open(f'{cls.tempdir}/vpp_stdout.txt', 'w') as f:
                 f.write(vpp_output)
             stdout_log('\n%s', vpp_output)
             stdout_log(single_line_delim)
@@ -771,7 +764,7 @@ class VppTestCase(CPUInterface, unittest.TestCase):
             stderr_log('VPP output to stderr while running %s:', cls.__name__)
             stderr_log(single_line_delim)
             vpp_output = "".join(cls.vpp_stderr_deque)
-            with open(cls.tempdir + '/vpp_stderr.txt', 'w') as f:
+            with open(f'{cls.tempdir}/vpp_stderr.txt', 'w') as f:
                 f.write(vpp_output)
             stderr_log('\n%s', vpp_output)
             stderr_log(single_line_delim)
@@ -779,8 +772,7 @@ class VppTestCase(CPUInterface, unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         """ Perform final cleanup after running all tests in this test-case """
-        cls.logger.debug("--- tearDownClass() for %s called ---" %
-                         cls.__name__)
+        cls.logger.debug(f"--- tearDownClass() for {cls.__name__} called ---")
         cls.reporter.send_keep_alive(cls, 'tearDownClass')
         cls.quit()
         cls.file_handler.close()
@@ -794,9 +786,10 @@ class VppTestCase(CPUInterface, unittest.TestCase):
 
     def tearDown(self):
         """ Show various debug prints after each test """
-        self.logger.debug("--- tearDown() for %s.%s(%s) called ---" %
-                          (self.__class__.__name__, self._testMethodName,
-                           self._testMethodDoc))
+        self.logger.debug(
+            f"--- tearDown() for {self.__class__.__name__}.{self._testMethodName}({self._testMethodDoc}) called ---"
+        )
+
 
         try:
             if not self.vpp_dead:
@@ -813,9 +806,9 @@ class VppTestCase(CPUInterface, unittest.TestCase):
             # Save/Dump VPP api trace log
             m = self._testMethodName
             api_trace = "vpp_api_trace.%s.%d.log" % (m, self.vpp.pid)
-            tmp_api_trace = "/tmp/%s" % api_trace
-            vpp_api_trace_log = "%s/%s" % (self.tempdir, api_trace)
-            self.logger.info(self.vapi.ppcli("api trace save %s" % api_trace))
+            tmp_api_trace = f"/tmp/{api_trace}"
+            vpp_api_trace_log = f"{self.tempdir}/{api_trace}"
+            self.logger.info(self.vapi.ppcli(f"api trace save {api_trace}"))
             self.logger.info("Moving %s to %s\n" % (tmp_api_trace,
                                                     vpp_api_trace_log))
             os.rename(tmp_api_trace, vpp_api_trace_log)
@@ -908,8 +901,7 @@ class VppTestCase(CPUInterface, unittest.TestCase):
                 cls.logger.error("Timeout waiting for pg to stop")
                 break
         for intf, worker in cls._pcaps:
-            cls.vapi.cli('packet-generator delete %s' %
-                         intf.get_cap_name(worker))
+            cls.vapi.cli(f'packet-generator delete {intf.get_cap_name(worker)}')
         cls._old_pcaps = cls._pcaps
         cls._pcaps = []
 
@@ -963,7 +955,7 @@ class VppTestCase(CPUInterface, unittest.TestCase):
         :param count: number of interfaces created.
         :returns: List of created interfaces.
         """
-        result = [VppLoInterface(cls) for i in range(count)]
+        result = [VppLoInterface(cls) for _ in range(count)]
         for intf in result:
             setattr(cls, intf.name, intf)
         cls.lo_interfaces = result
@@ -977,7 +969,7 @@ class VppTestCase(CPUInterface, unittest.TestCase):
         :param count: number of interfaces created.
         :returns: List of created interfaces.
         """
-        result = [VppBviInterface(cls) for i in range(count)]
+        result = [VppBviInterface(cls) for _ in range(count)]
         for intf in result:
             setattr(cls, intf.name, intf)
         cls.bvi_interfaces = result
@@ -1076,10 +1068,7 @@ class VppTestCase(CPUInterface, unittest.TestCase):
         :param info: info or None
         :returns: next info in list or None if no more infos
         """
-        if info is None:
-            next_index = 0
-        else:
-            next_index = info.index + 1
+        next_index = 0 if info is None else info.index + 1
         if next_index == len(self._packet_infos):
             return None
         else:
@@ -1126,12 +1115,17 @@ class VppTestCase(CPUInterface, unittest.TestCase):
             return
         try:
             msg = "Invalid %s: %d('%s') does not match expected value %d('%s')"
-            msg = msg % (getdoc(name_or_class).strip(),
-                         real_value, str(name_or_class(real_value)),
-                         expected_value, str(name_or_class(expected_value)))
+            msg %= (
+                getdoc(name_or_class).strip(),
+                real_value,
+                str(name_or_class(real_value)),
+                expected_value,
+                str(name_or_class(expected_value)),
+            )
+
         except Exception:
-            msg = "Invalid %s: %s does not match expected value %s" % (
-                name_or_class, real_value, expected_value)
+            msg = f"Invalid {name_or_class}: {real_value} does not match expected value {expected_value}"
+
 
         self.assertEqual(real_value, expected_value, msg)
 
@@ -1143,8 +1137,8 @@ class VppTestCase(CPUInterface, unittest.TestCase):
         if name is None:
             msg = None
         else:
-            msg = "Invalid %s: %s out of range <%s,%s>" % (
-                name, real_value, expected_min, expected_max)
+            msg = f"Invalid {name}: {real_value} out of range <{expected_min},{expected_max}>"
+
         self.assertTrue(expected_min <= real_value <= expected_max, msg)
 
     def assert_packet_checksums_valid(self, packet,
@@ -1155,23 +1149,21 @@ class VppTestCase(CPUInterface, unittest.TestCase):
         checksums = []
         counter = 0
         temp = received.__class__(scapy.compat.raw(received))
-        while True:
-            layer = temp.getlayer(counter)
-            if layer:
-                layer = layer.copy()
-                layer.remove_payload()
-                for cf in checksum_fields:
-                    if hasattr(layer, cf):
-                        if ignore_zero_udp_checksums and \
-                                0 == getattr(layer, cf) and \
-                                layer.name in udp_layers:
-                            continue
-                        delattr(temp.getlayer(counter), cf)
-                        checksums.append((counter, cf))
-            else:
-                break
-            counter = counter + 1
-        if 0 == len(checksums):
+        while layer := temp.getlayer(counter):
+            layer = layer.copy()
+            layer.remove_payload()
+            for cf in checksum_fields:
+                if hasattr(layer, cf):
+                    if (
+                        ignore_zero_udp_checksums
+                        and getattr(layer, cf) == 0
+                        and layer.name in udp_layers
+                    ):
+                        continue
+                    delattr(temp.getlayer(counter), cf)
+                    checksums.append((counter, cf))
+            counter += 1
+        if not checksums:
             return
         temp = temp.__class__(scapy.compat.raw(temp))
         for layer, cf in checksums:
@@ -1180,23 +1172,25 @@ class VppTestCase(CPUInterface, unittest.TestCase):
                 getattr(received[layer], cf), calc_sum,
                 "packet checksum on layer #%d: %s" % (layer, temp[layer].name))
             self.logger.debug(
-                "Checksum field `%s` on `%s` layer has correct value `%s`" %
-                (cf, temp[layer].name, calc_sum))
+                f"Checksum field `{cf}` on `{temp[layer].name}` layer has correct value `{calc_sum}`"
+            )
 
     def assert_checksum_valid(self, received_packet, layer,
                               field_name='chksum',
                               ignore_zero_checksum=False):
         """ Check checksum of received packet on given layer """
         received_packet_checksum = getattr(received_packet[layer], field_name)
-        if ignore_zero_checksum and 0 == received_packet_checksum:
+        if ignore_zero_checksum and received_packet_checksum == 0:
             return
         recalculated = received_packet.__class__(
             scapy.compat.raw(received_packet))
         delattr(recalculated[layer], field_name)
         recalculated = recalculated.__class__(scapy.compat.raw(recalculated))
-        self.assert_equal(received_packet_checksum,
-                          getattr(recalculated[layer], field_name),
-                          "packet checksum on layer: %s" % layer)
+        self.assert_equal(
+            received_packet_checksum,
+            getattr(recalculated[layer], field_name),
+            f"packet checksum on layer: {layer}",
+        )
 
     def assert_ip_checksum_valid(self, received_packet,
                                  ignore_zero_checksum=False):
@@ -1307,8 +1301,7 @@ class VppTestCase(CPUInterface, unittest.TestCase):
         if not n_rx:
             n_rx = len(pkts)
         self.pg_send(intf, pkts, worker=worker, trace=trace)
-        rx = output.get_capture(n_rx)
-        return rx
+        return output.get_capture(n_rx)
 
     def send_and_expect_only(self, intf, pkts, output, timeout=None):
         self.pg_send(intf, pkts)
@@ -1331,10 +1324,7 @@ def get_testcase_doc_name(test):
 
 def get_test_description(descriptions, test):
     short_description = test.shortDescription()
-    if descriptions and short_description:
-        return short_description
-    else:
-        return str(test)
+    return short_description if descriptions and short_description else str(test)
 
 
 class TestCaseInfo(object):
@@ -1391,9 +1381,9 @@ class VppTestResult(unittest.TestResult):
         """
         if self.current_test_case_info:
             self.current_test_case_info.logger.debug(
-                "--- addSuccess() %s.%s(%s) called" % (test.__class__.__name__,
-                                                       test._testMethodName,
-                                                       test._testMethodDoc))
+                f"--- addSuccess() {test.__class__.__name__}.{test._testMethodName}({test._testMethodDoc}) called"
+            )
+
         unittest.TestResult.addSuccess(self, test)
         self.result_string = colorize("OK", GREEN)
 

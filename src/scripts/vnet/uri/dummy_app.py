@@ -9,18 +9,17 @@ import argparse
 action = "drop"
 test = 0
 
-def test_data (data, n_rcvd):
+def test_data(data, n_rcvd):
     n_read = len (data);
     for i in range(n_read):
         expected = (n_rcvd + i) & 0xff
         byte_got = ord (data[i])
         if (byte_got != expected):
-            print("Difference at byte {}. Expected {} got {}"
-                  .format(n_rcvd + i, expected, byte_got))
+            print(f"Difference at byte {n_rcvd + i}. Expected {expected} got {byte_got}")
     return n_read
 
-def handle_connection (connection, client_address):
-    print("Received connection from {}".format(repr(client_address)))
+def handle_connection(connection, client_address):
+    print(f"Received connection from {repr(client_address)}")
     n_rcvd = 0
     try:
         while True:
@@ -34,7 +33,7 @@ def handle_connection (connection, client_address):
     finally:
         connection.close()
 def run_tcp_server(ip, port):
-    print("Starting TCP server {}:{}".format(repr(ip), repr(port)))
+    print(f"Starting TCP server {repr(ip)}:{repr(port)}")
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_address = (ip, int(port))
@@ -44,14 +43,14 @@ def run_tcp_server(ip, port):
         connection, client_address = sock.accept()
         handle_connection (connection, client_address)
 def run_udp_server(ip, port):
-    print("Starting UDP server {}:{}".format(repr(ip), repr(port)))
+    print(f"Starting UDP server {repr(ip)}:{repr(port)}")
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_address = (ip, int(port))
     sock.bind(server_address)
     while True:
-        data, addr = sock.recvfrom(4096)
         if (action != "drop"):
+            data, addr = sock.recvfrom(4096)
             #snd_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.sendto (data, addr)
 
@@ -62,13 +61,11 @@ def run_server(ip, port, proto):
         run_udp_server(ip, port)
 
 def prepare_data(power):
-    buf = []
-    for i in range (0, pow(2, power)):
-        buf.append(i & 0xff)
+    buf = [i & 0xff for i in range(pow(2, power))]
     return bytearray(buf)
 
 def run_tcp_client(ip, port):
-    print("Starting TCP client {}:{}".format(repr(ip), repr(port)))
+    print(f"Starting TCP client {repr(ip)}:{repr(port)}")
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_address = (ip, int(port))
     sock.connect(server_address)
@@ -86,25 +83,24 @@ def run_tcp_client(ip, port):
             n_read = len(tmp)
             for i in range(n_read):
                 if (data[n_rcvd + i] != tmp[i]):
-                    print("Difference at byte {}. Sent {} got {}"
-                          .format(n_rcvd + i, data[n_rcvd + i], tmp[i]))
+                    print(f"Difference at byte {n_rcvd + i}. Sent {data[n_rcvd + i]} got {tmp[i]}")
             n_rcvd += n_read
 
         if (n_rcvd < n_sent or n_rcvd > n_sent):
-            print("Sent {} and got back {}".format(n_sent, n_rcvd))
+            print(f"Sent {n_sent} and got back {n_rcvd}")
         else:
             print("Got back what we've sent!!");
 
     finally:
         sock.close()
 def run_udp_client(ip, port):
-    print("Starting UDP client {}:{}".format(repr(ip), repr(port)))
+    print(f"Starting UDP client {repr(ip)}:{repr(port)}")
     n_packets = 100
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server_address = (ip, int(port))
     data = prepare_data(10)
     try:
-        for i in range (0, n_packets):
+        for _ in range(n_packets):
             sock.sendto(data, server_address)
     finally:
         sock.close()

@@ -98,10 +98,7 @@ class TestClassifier(VppTestCase):
             self.logger.info(self.vapi.cli("show classify table verbose"))
             self.logger.info(self.vapi.cli("show ip fib"))
 
-            acl_active_table = 'ip_out'
-            if self.af == AF_INET6:
-                acl_active_table = 'ip6_out'
-
+            acl_active_table = 'ip6_out' if self.af == AF_INET6 else 'ip_out'
             if self.acl_active_table == acl_active_table:
                 self.output_acl_set_interface(
                     self.pg0, self.acl_tbl_idx.get(self.acl_active_table), 0)
@@ -267,10 +264,8 @@ class TestClassifier(VppTestCase):
         ip_proto = IP
         if self.af == AF_INET6:
             ip_proto = IPv6
-        self.logger.info("Verifying capture on interface %s" % dst_if.name)
-        last_info = dict()
-        for i in self.interfaces:
-            last_info[i.sw_if_index] = None
+        self.logger.info(f"Verifying capture on interface {dst_if.name}")
+        last_info = {i.sw_if_index: None for i in self.interfaces}
         dst_sw_if_index = dst_if.sw_if_index
         for packet in capture:
             try:

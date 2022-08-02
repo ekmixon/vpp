@@ -19,7 +19,7 @@ class SerializableClassCopy:
     pass
 
     def __repr__(self):
-        return '<SerializableClassCopy dict=%s>' % self.__dict__
+        return f'<SerializableClassCopy dict={self.__dict__}>'
 
 
 class RemoteClassAttr:
@@ -44,18 +44,16 @@ class RemoteClassAttr:
         return self._remote._remote_exec(RemoteClass.STR, self.path_to_str())
 
     def __getattr__(self, attr):
-        if attr[0] == '_':
-            if not (attr.startswith('__') and attr.endswith('__')):
-                raise AttributeError('tried to get private attribute: %s ',
-                                     attr)
+        if attr[0] == '_' and not (attr.startswith('__') and attr.endswith('__')):
+            raise AttributeError('tried to get private attribute: %s ',
+                                 attr)
         self._path.append(attr)
         return self
 
     def __setattr__(self, attr, val):
-        if attr[0] == '_':
-            if not (attr.startswith('__') and attr.endswith('__')):
-                super(RemoteClassAttr, self).__setattr__(attr, val)
-                return
+        if attr[0] == '_' and not (attr.startswith('__') and attr.endswith('__')):
+            super(RemoteClassAttr, self).__setattr__(attr, val)
+            return
         self._path.append(attr)
         self._remote._remote_exec(RemoteClass.SETATTR, self.path_to_str(),
                                   value=val)
@@ -118,18 +116,20 @@ class RemoteClass(Process):
         return self.RemoteClassAttr(self, None)()
 
     def __getattr__(self, attr):
-        if attr[0] == '_' or not self.is_alive():
-            if not (attr.startswith('__') and attr.endswith('__')):
-                if hasattr(super(RemoteClass, self), '__getattr__'):
-                    return super(RemoteClass, self).__getattr__(attr)
-                raise AttributeError('missing: %s', attr)
+        if (attr[0] == '_' or not self.is_alive()) and not (
+            attr.startswith('__') and attr.endswith('__')
+        ):
+            if hasattr(super(RemoteClass, self), '__getattr__'):
+                return super(RemoteClass, self).__getattr__(attr)
+            raise AttributeError('missing: %s', attr)
         return RemoteClassAttr(self, attr)
 
     def __setattr__(self, attr, val):
-        if attr[0] == '_' or not self.is_alive():
-            if not (attr.startswith('__') and attr.endswith('__')):
-                super(RemoteClass, self).__setattr__(attr, val)
-                return
+        if (attr[0] == '_' or not self.is_alive()) and not (
+            attr.startswith('__') and attr.endswith('__')
+        ):
+            super(RemoteClass, self).__setattr__(attr, val)
+            return
         setattr(RemoteClassAttr(self, None), attr, val)
 
     def _remote_exec(self, op, path=None, *args, **kwargs):
@@ -139,13 +139,11 @@ class RemoteClass(Process):
         # automatically resolve remote objects in the arguments
         mutable_args = list(args)
         for i, val in enumerate(mutable_args):
-            if isinstance(val, RemoteClass) or \
-                    isinstance(val, RemoteClassAttr):
+            if isinstance(val, (RemoteClass, RemoteClassAttr)):
                 mutable_args[i] = val.get_remote_value()
         args = tuple(mutable_args)
         for key, val in kwargs.items():
-            if isinstance(val, RemoteClass) or \
-                    isinstance(val, RemoteClassAttr):
+            if isinstance(val, (RemoteClass, RemoteClassAttr)):
                 kwargs[key] = val.get_remote_value()
         # send request
         args = self._make_serializable(args)
@@ -235,8 +233,8 @@ class RemoteClass(Process):
         """
         if (type(obj) is dict):
             copy.type = type(obj)
-            copy.k_list = list()
-            copy.v_list = list()
+            copy.k_list = []
+            copy.v_list = []
             for k, v in obj.items():
                 copy.k_list.append(self._make_serializable(k))
                 copy.v_list.append(self._make_serializable(v))
@@ -264,14 +262,12 @@ class RemoteClass(Process):
         Make a serializable copy of an object or a list/tuple of objects.
         Members which are difficult/impossible to serialize are stripped.
         """
-        if (type(obj) is list) or (type(obj) is tuple):
-            rv = []
-            for item in obj:
-                rv.append(self._make_serializable(item))
+        if type(obj) is list or type(obj) is tuple:
+            rv = [self._make_serializable(item) for item in obj]
             if type(obj) is tuple:
                 rv = tuple(rv)
             return rv
-        elif (isinstance(obj, IntEnum) or isinstance(obj, IntFlag)):
+        elif isinstance(obj, (IntEnum, IntFlag)):
             return obj.value
         else:
             return self._make_obj_serializable(obj)
@@ -279,22 +275,21 @@ class RemoteClass(Process):
     def _deserialize_obj(self, obj):
         if (hasattr(obj, 'type')):
             if obj.type is dict:
-                _obj = dict()
-                for k, v in zip(obj.k_list, obj.v_list):
-                    _obj[self._deserialize(k)] = self._deserialize(v)
+                _obj = {
+                    self._deserialize(k): self._deserialize(v)
+                    for k, v in zip(obj.k_list, obj.v_list)
+                }
+
             return _obj
         return obj
 
     def _deserialize(self, obj):
-        if (type(obj) is list) or (type(obj) is tuple):
-            rv = []
-            for item in obj:
-                rv.append(self._deserialize(item))
-            if type(obj) is tuple:
-                rv = tuple(rv)
-            return rv
-        else:
+        if type(obj) is not list and type(obj) is not tuple:
             return self._deserialize_obj(obj)
+        rv = [self._deserialize(item) for item in obj]
+        if type(obj) is tuple:
+            rv = tuple(rv)
+        return rv
 
     def start_remote(self):
         """ Start remote execution """
@@ -402,7 +397,7 @@ class RemoteVppTestCase(VppTestCase):
             del os.environ['STEP']
         if 'DEBUG' in os.environ:
             del os.environ['DEBUG']
-        cls.tempdir_prefix = os.path.basename(tempdir) + "/"
+        cls.tempdir_prefix = f"{os.path.basename(tempdir)}/"
         super(RemoteVppTestCase, cls).setUpClass()
         os.environ = orig_env
 

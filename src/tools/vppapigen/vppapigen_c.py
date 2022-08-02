@@ -56,15 +56,14 @@ class ToJSON():
         self.module = module
         self.defines = defines
         self.types = types
-        self.types_hash = {'vl_api_'+d.name+'_t':
-                           d for d in types + imported_types}
+        self.types_hash = {f'vl_api_{d.name}_t': d for d in types + imported_types}
         self.defines_hash = {d.name: d for d in defines}
 
     def header(self):
         '''Output the top boilerplate.'''
         write = self.stream.write
-        write('#ifndef included_{}_api_tojson_h\n'.format(self.module))
-        write('#define included_{}_api_tojson_h\n'.format(self.module))
+        write(f'#ifndef included_{self.module}_api_tojson_h\n')
+        write(f'#define included_{self.module}_api_tojson_h\n')
         write('#include <vppinfra/cJSON.h>\n\n')
         write('#include <vat2/jsonconvert.h>\n\n')
 
@@ -94,7 +93,7 @@ class ToJSON():
             return 'cJSON_AddBoolToObject', '', False
 
         # Lookup type name check if it's enum
-        if vt.type == 'Enum' or vt.type == 'EnumFlag':
+        if vt.type in ['Enum', 'EnumFlag']:
             return '{t}_tojson'.format(t=t), '', True
         return '{t}_tojson'.format(t=t), '&', True
 
@@ -106,7 +105,7 @@ class ToJSON():
         if t == 'bool':
             return 'cJSON_CreateBool', ''
         vt, vt_type = self.get_base_type(t)
-        if vt.type == 'Enum' or vt.type == 'EnumFlag':
+        if vt.type in ['Enum', 'EnumFlag']:
             return '{t}_tojson'.format(t=t), ''
         return '{t}_tojson'.format(t=t), '&'
 
@@ -156,7 +155,7 @@ class ToJSON():
             self.print_string(o)
             return
 
-        lfield = 'a->' + o.lengthfield if o.lengthfield else o.length
+        lfield = f'a->{o.lengthfield}' if o.lengthfield else o.length
         if o.fieldtype == 'u8':
             write('    {\n')
             # What is length field doing here?
@@ -187,7 +186,7 @@ class ToJSON():
         write("    switch(a) {\n")
         for b in o.block:
             write("    case %s:\n" % b[1])
-            write('        return cJSON_CreateString("{}");\n'.format(b[0]))
+            write(f'        return cJSON_CreateString("{b[0]}");\n')
         write('    default: return cJSON_CreateString("Invalid ENUM");\n')
         write('    }\n')
         write('    return 0;\n')
@@ -203,8 +202,8 @@ class ToJSON():
         write('    cJSON *array = cJSON_CreateArray();\n')
 
         for b in o.block:
-            write('    if (a & {})\n'.format(b[0]))
-            write('       cJSON_AddItemToArray(array, cJSON_CreateString("{}"));\n'.format(b[0]))
+            write(f'    if (a & {b[0]})\n')
+            write(f'       cJSON_AddItemToArray(array, cJSON_CreateString("{b[0]}"));\n')
         write('    return array;\n')
         write('}\n')
 
@@ -229,8 +228,7 @@ class ToJSON():
         write('static inline cJSON *vl_api_{name}_t_tojson '
               '(vl_api_{name}_t *a) {{\n'.format(name=o.name))
         write('    cJSON *o = cJSON_CreateObject();\n')
-        write('    cJSON_AddStringToObject(o, "_msgname", "{}");\n'
-              .format(o.name))
+        write(f'    cJSON_AddStringToObject(o, "_msgname", "{o.name}");\n')
 
         for t in o.block:
             self._dispatch[t.type](self, t)
@@ -247,8 +245,7 @@ class ToJSON():
         write('static inline cJSON *vl_api_{name}_t_tojson '
               '(vl_api_{name}_t *a) {{\n'.format(name=o.name))
 
-        write('    u8 *s = format(0, "%U", format_vl_api_{}_t, a);\n'
-              .format(o.name))
+        write(f'    u8 *s = format(0, "%U", format_vl_api_{o.name}_t, a);\n')
         write('    cJSON *o = cJSON_CreateString((char *)s);\n')
         write('    vec_free(s);\n')
         write('    return o;\n')
@@ -263,7 +260,7 @@ class ToJSON():
         '''Main entry point'''
         write = self.stream.write
         if t.manual_print:
-            write('/* Manual print {} */\n'.format(t.name))
+            write(f'/* Manual print {t.name} */\n')
             return
         self._dispatch[t.type](self, t)
 
@@ -302,26 +299,21 @@ class FromJSON():
         self.module = module
         self.defines = defines
         self.types = types
-        self.types_hash = {'vl_api_'+d.name+'_t':
-                           d for d in types + imported_types}
+        self.types_hash = {f'vl_api_{d.name}_t': d for d in types + imported_types}
         self.defines_hash = {d.name: d for d in defines}
 
     def header(self):
         '''Output the top boilerplate.'''
         write = self.stream.write
-        write('#ifndef included_{}_api_fromjson_h\n'.format(self.module))
-        write('#define included_{}_api_fromjson_h\n'.format(self.module))
+        write(f'#ifndef included_{self.module}_api_fromjson_h\n')
+        write(f'#define included_{self.module}_api_fromjson_h\n')
         write('#include <vppinfra/cJSON.h>\n\n')
         write('#include <vat2/jsonconvert.h>\n\n')
         write('#pragma GCC diagnostic ignored "-Wunused-label"\n')
 
     def is_base_type(self, t):
         '''Check if a type is one of the VPP API base types'''
-        if t in self.is_number:
-            return True
-        if t == 'bool':
-            return True
-        return False
+        return True if t in self.is_number else t == 'bool'
 
     def footer(self):
         '''Output the bottom boilerplate.'''
@@ -332,12 +324,12 @@ class FromJSON():
         '''Convert JSON string to vl_api_string_t'''
         write = self.stream.write
 
-        msgvar = "a" if toplevel else "*mp"
-        msgsize = "l" if toplevel else "*len"
-
         if o.modern_vla:
             write('    char *p = cJSON_GetStringValue(item);\n')
             write('    size_t plen = strlen(p);\n')
+            msgvar = "a" if toplevel else "*mp"
+            msgsize = "l" if toplevel else "*len"
+
             write('    {msgvar} = realloc({msgvar}, {msgsize} + plen);\n'
                   .format(msgvar=msgvar, msgsize=msgsize))
             write('    if ({msgvar} == 0) goto error;\n'.format(msgvar=msgvar))
@@ -356,15 +348,15 @@ class FromJSON():
         if o.fieldname in self.noprint_fields:
             return
         is_bt = self.is_base_type(o.fieldtype)
-        t = 'vl_api_{}'.format(o.fieldtype) if is_bt else o.fieldtype
-
-        msgvar = "(void **)&a" if toplevel else "mp"
-        msgsize = "&l" if toplevel else "len"
+        t = f'vl_api_{o.fieldtype}' if is_bt else o.fieldtype
 
         if is_bt:
             write('    vl_api_{t}_fromjson(item, &a->{n});\n'
                   .format(t=o.fieldtype, n=o.fieldname))
         else:
+            msgvar = "(void **)&a" if toplevel else "mp"
+            msgsize = "&l" if toplevel else "len"
+
             write('    if ({t}_fromjson({msgvar}, '
                   '{msgsize}, item, &a->{n}) < 0) goto error;\n'
                   .format(t=t, n=o.fieldname, msgvar=msgvar, msgsize=msgsize))
@@ -375,49 +367,21 @@ class FromJSON():
         '''Convert JSON array to VPP API array'''
         write = self.stream.write
 
-        forloop = '''\
-    {{
-        int i;
-        cJSON *array = cJSON_GetObjectItem(o, "{n}");
-        int size = cJSON_GetArraySize(array);
-        if (size != {lfield}) goto error;
-        for (i = 0; i < size; i++) {{
-            cJSON *e = cJSON_GetArrayItem(array, i);
-            {call}
-        }}
-    }}
-'''
-        forloop_vla = '''\
-    {{
-        int i;
-        cJSON *array = cJSON_GetObjectItem(o, "{n}");
-        int size = cJSON_GetArraySize(array);
-        {lfield} = size;
-        {realloc} = realloc({realloc}, {msgsize} + sizeof({t}) * size);
-        {t} *d = (void *){realloc} + {msgsize};
-        {msgsize} += sizeof({t}) * size;
-        for (i = 0; i < size; i++) {{
-            cJSON *e = cJSON_GetArrayItem(array, i);
-            {call}
-        }}
-    }}
-'''
         t = o.fieldtype
         if o.fieldtype == 'string':
             self.print_string(o, toplevel)
             return
 
-        lfield = 'a->' + o.lengthfield if o.lengthfield else o.length
+        lfield = f'a->{o.lengthfield}' if o.lengthfield else o.length
         msgvar = "(void **)&a" if toplevel else "mp"
         realloc = "a" if toplevel else "*mp"
         msgsize = "l" if toplevel else "*len"
 
         if o.fieldtype == 'u8':
             if o.lengthfield:
-                write('    s = u8string_fromjson(o, "{}");\n'
-                      .format(o.fieldname))
+                write(f'    s = u8string_fromjson(o, "{o.fieldname}");\n')
                 write('    if (!s) goto error;\n')
-                write('    {} = vec_len(s);\n'.format(lfield))
+                write(f'    {lfield} = vec_len(s);\n')
 
                 write('    {realloc} = realloc({realloc}, {msgsize} + '
                       'vec_len(s));\n'.format(msgvar=msgvar, msgsize=msgsize, realloc=realloc))
@@ -440,6 +404,21 @@ class FromJSON():
             else:
                 call = ('if ({t}_fromjson({msgvar}, len, e, &d[i]) < 0) goto error; '
                         .format(t=o.fieldtype, msgvar=msgvar))
+            forloop_vla = '''\
+    {{
+        int i;
+        cJSON *array = cJSON_GetObjectItem(o, "{n}");
+        int size = cJSON_GetArraySize(array);
+        {lfield} = size;
+        {realloc} = realloc({realloc}, {msgsize} + sizeof({t}) * size);
+        {t} *d = (void *){realloc} + {msgsize};
+        {msgsize} += sizeof({t}) * size;
+        for (i = 0; i < size; i++) {{
+            cJSON *e = cJSON_GetArrayItem(array, i);
+            {call}
+        }}
+    }}
+'''
             write(forloop_vla.format(lfield=lfield,
                                      t=o.fieldtype,
                                      n=o.fieldname,
@@ -451,8 +430,20 @@ class FromJSON():
                 call = ('vl_api_{t}_fromjson(e, &a->{n}[i]);'
                         .format(t=t, n=o.fieldname))
             else:
-                call = ('if ({}_fromjson({}, len, e, &a->{}[i]) < 0) goto error;'
-                        .format(t, msgvar, o.fieldname))
+                call = f'if ({t}_fromjson({msgvar}, len, e, &a->{o.fieldname}[i]) < 0) goto error;'
+
+            forloop = '''\
+    {{
+        int i;
+        cJSON *array = cJSON_GetObjectItem(o, "{n}");
+        int size = cJSON_GetArraySize(array);
+        if (size != {lfield}) goto error;
+        for (i = 0; i < size; i++) {{
+            cJSON *e = cJSON_GetArrayItem(array, i);
+            {call}
+        }}
+    }}
+'''
             write(forloop.format(lfield=lfield,
                                  t=t,
                                  n=o.fieldname,
@@ -492,8 +483,7 @@ class FromJSON():
         write('       char *p = cJSON_GetStringValue(e);\n')
         write('       if (!p) return -1;\n')
         for b in o.block:
-            write('       if (strcmp(p, "{}") == 0) *a |= {};\n'
-                  .format(b[0], b[1]))
+            write(f'       if (strcmp(p, "{b[0]}") == 0) *a |= {b[1]};\n')
         write('    }\n')
         write('   return 0;\n')
         write('}\n')
@@ -512,8 +502,7 @@ class FromJSON():
         for t in o.block:
             if t.type == 'Field' and t.is_lengthfield:
                 continue
-            write('\n    item = cJSON_GetObjectItem(o, "{}");\n'
-                  .format(t.fieldname))
+            write(f'\n    item = cJSON_GetObjectItem(o, "{t.fieldname}");\n')
             write('    if (!item) goto error;\n')
             self._dispatch[t.type](self, t)
 
@@ -534,8 +523,7 @@ class FromJSON():
         for t in o.block:
             if t.type == 'Field' and t.is_lengthfield:
                 continue
-            write('    item = cJSON_GetObjectItem(o, "{}");\n'
-                  .format(t.fieldname))
+            write(f'    item = cJSON_GetObjectItem(o, "{t.fieldname}");\n')
             write('    if (item) {\n')
             self._dispatch[t.type](self, t)
             write('    };\n')
@@ -552,8 +540,8 @@ class FromJSON():
               '(cJSON *o, int *len) {{\n'.format(name=o.name))
         write('    cJSON *item __attribute__ ((unused));\n')
         write('    u8 *s __attribute__ ((unused));\n')
-        write('    int l = sizeof(vl_api_{}_t);\n'.format(o.name))
-        write('    vl_api_{}_t *a = malloc(l);\n'.format(o.name))
+        write(f'    int l = sizeof(vl_api_{o.name}_t);\n')
+        write(f'    vl_api_{o.name}_t *a = malloc(l);\n')
         write('\n')
 
         for t in o.block:
@@ -561,8 +549,7 @@ class FromJSON():
                 continue
             if t.type == 'Field' and t.is_lengthfield:
                 continue
-            write('    item = cJSON_GetObjectItem(o, "{}");\n'
-                  .format(t.fieldname))
+            write(f'    item = cJSON_GetObjectItem(o, "{t.fieldname}");\n')
             write('    if (!item) goto error;\n')
             error += 1
             self._dispatch[t.type](self, t, toplevel=True)
@@ -590,10 +577,8 @@ class FromJSON():
               .format(name=o.name))
         if 'length' in o.alias:
             if t.fieldtype != 'u8':
-                raise ValueError("Error in processing type {} for {}"
-                                 .format(t.fieldtype, o.name))
-            write('    vl_api_u8_string_fromjson(o, (u8 *)a, {});\n'
-                  .format(o.alias['length']))
+                raise ValueError(f"Error in processing type {t.fieldtype} for {o.name}")
+            write(f"    vl_api_u8_string_fromjson(o, (u8 *)a, {o.alias['length']});\n")
         else:
             write('    vl_api_{t}_fromjson(o, ({t} *)a);\n'
                   .format(t=t.fieldtype))
@@ -610,7 +595,7 @@ class FromJSON():
         '''Main entry point'''
         write = self.stream.write
         if t.manual_print:
-            write('/* Manual print {} */\n'.format(t.name))
+            write(f'/* Manual print {t.name} */\n')
             return
         self._dispatch[t.type](self, t)
 
@@ -632,7 +617,7 @@ def generate_tojson(s, modulename, stream):
     write('/* Imported API files */\n')
     for i in s['Import']:
         f = i.filename.replace('plugins/', '')
-        write('#include <{}_tojson.h>\n'.format(f))
+        write(f'#include <{f}_tojson.h>\n')
 
     pp = ToJSON(modulename, s['types'], s['Define'], s['imported']['types'],
                 stream)
@@ -649,7 +634,7 @@ def generate_fromjson(s, modulename, stream):
     write('/* Imported API files */\n')
     for i in s['Import']:
         f = i.filename.replace('plugins/', '')
-        write('#include <{}_fromjson.h>\n'.format(f))
+        write(f'#include <{f}_fromjson.h>\n')
 
     pp = FromJSON(modulename, s['types'], s['Define'], s['imported']['types'],
                   stream)
@@ -738,7 +723,7 @@ def msg_name_crc_list(s, suffix):
 
 #ifdef vl_msg_name_crc_list
 '''
-    output += "#define foreach_vl_msg_name_crc_%s " % suffix
+    output += f"#define foreach_vl_msg_name_crc_{suffix} "
 
     for t in s['Define']:
         output += "\\\n_(VL_API_%s, %s, %08x) " % \
@@ -751,22 +736,21 @@ def msg_name_crc_list(s, suffix):
 def api2c(fieldtype):
     '''Map between API type names and internal VPP type names'''
     mappingtable = {'string': 'vl_api_string_t', }
-    if fieldtype in mappingtable:
-        return mappingtable[fieldtype]
-    return fieldtype
+    return mappingtable.get(fieldtype, fieldtype)
 
 
 def typedefs(filename):
     '''Include in the main files to the types file'''
-    output = '''\
+    return '''\
 
 /****** Typedefs ******/
 
 #ifdef vl_typedefs
 #include "{include}.api_types.h"
 #endif
-'''.format(include=filename)
-    return output
+'''.format(
+        include=filename
+    )
 
 
 FORMAT_STRINGS = {'u8': '%u',
@@ -832,20 +816,6 @@ class Printfun():
         '''Pretty print API array'''
         write = stream.write
 
-        forloop = '''\
-    for (i = 0; i < {lfield}; i++) {{
-        s = format(s, "\\n%U{n}: %U",
-                   format_white_space, indent, format_{t}, &a->{n}[i], indent);
-    }}
-'''
-
-        forloop_format = '''\
-    for (i = 0; i < {lfield}; i++) {{
-        s = format(s, "\\n%U{n}: {t}",
-                   format_white_space, indent, a->{n}[i]);
-    }}
-'''
-
         if o.fieldtype == 'string':
             self.print_string(o, stream)
             return
@@ -861,12 +831,26 @@ class Printfun():
                       .format(n=o.fieldname, lfield=o.length))
             return
 
-        lfield = 'a->' + o.lengthfield if o.lengthfield else o.length
+        lfield = f'a->{o.lengthfield}' if o.lengthfield else o.length
         if o.fieldtype in FORMAT_STRINGS:
+            forloop_format = '''\
+    for (i = 0; i < {lfield}; i++) {{
+        s = format(s, "\\n%U{n}: {t}",
+                   format_white_space, indent, a->{n}[i]);
+    }}
+'''
+
             write(forloop_format.format(lfield=lfield,
                                         t=FORMAT_STRINGS[o.fieldtype],
                                         n=o.fieldname))
         else:
+            forloop = '''\
+    for (i = 0; i < {lfield}; i++) {{
+        s = format(s, "\\n%U{n}: %U",
+                   format_white_space, indent, format_{t}, &a->{n}[i], indent);
+    }}
+'''
+
             write(forloop.format(lfield=lfield, t=o.fieldtype, n=o.fieldname))
 
     _dispatch['Array'] = print_array
@@ -877,14 +861,14 @@ class Printfun():
         write = stream.write
         if ('length' in v.alias and v.alias['length'] and
                 v.alias['type'] == 'u8'):
-            write('    return format(s, "%U", format_hex_bytes, a, {});\n'
-                  .format(v.alias['length']))
+            write(
+                f"""    return format(s, "%U", format_hex_bytes, a, {v.alias['length']});\n"""
+            )
+
         elif v.alias['type'] in FORMAT_STRINGS:
-            write('    return format(s, "{}", *a);\n'
-                  .format(FORMAT_STRINGS[v.alias['type']]))
+            write(f"""    return format(s, "{FORMAT_STRINGS[v.alias['type']]}", *a);\n""")
         else:
-            write('    return format(s, "{} (print not implemented)");\n'
-                  .format(k))
+            write(f'    return format(s, "{k} (print not implemented)");\n')
 
     @staticmethod
     def print_enum(o, stream):
@@ -893,7 +877,7 @@ class Printfun():
         write("    switch(*a) {\n")
         for b in o:
             write("    case %s:\n" % b[1])
-            write('        return format(s, "{}");\n'.format(b[0]))
+            write(f'        return format(s, "{b[0]}");\n')
         write('    }\n')
 
     _dispatch['Enum'] = print_enum
@@ -906,8 +890,9 @@ class Printfun():
         if o.type in self._dispatch:
             self._dispatch[o.type](self, o, stream)
         else:
-            write('    s = format(s, "\\n{} {} {} (print not implemented");\n'
-                  .format(o.type, o.fieldtype, o.fieldname))
+            write(
+                f'    s = format(s, "\\n{o.type} {o.fieldtype} {o.fieldname} (print not implemented");\n'
+            )
 
 
 def printfun(objs, stream, modulename):
@@ -947,7 +932,7 @@ static inline void *vl_api_{name}_t_print (vl_api_{name}_t *a, void *handle)
             write("/***** manual: vl_api_%s_t_print  *****/\n\n" % t.name)
             continue
         write(signature.format(name=t.name))
-        write('    /* Message definition: vl_api_{}_t: */\n'.format(t.name))
+        write(f'    /* Message definition: vl_api_{t.name}_t: */\n')
         write("    s = format(s, \"vl_api_%s_t:\");\n" % t.name)
         for o in t.block:
             pp.print_obj(o, stream)
@@ -988,7 +973,7 @@ static inline u8 *format_vl_api_{name}_t (u8 *s, va_list * args)
 '''
 
     for t in objs:
-        if t.__class__.__name__ == 'Enum' or t.__class__.__name__ == 'EnumFlag':
+        if t.__class__.__name__ in ['Enum', 'EnumFlag']:
             write(signature.format(name=t.name))
             pp.print_enum(t.block, stream)
             write('    return s;\n')
@@ -1018,12 +1003,10 @@ static inline u8 *format_vl_api_{name}_t (u8 *s, va_list * args)
 
 def generate_imports(imports):
     '''Add #include matching the API import statements'''
-    output = '/* Imported API files */\n'
-    output += '#ifndef vl_api_version\n'
-
+    output = '/* Imported API files */\n' + '#ifndef vl_api_version\n'
     for i in imports:
         s = i.filename.replace('plugins/', '')
-        output += '#include <{}.h>\n'.format(s)
+        output += f'#include <{s}.h>\n'
     output += '#endif\n'
     return output
 
@@ -1041,29 +1024,29 @@ ENDIAN_STRINGS = {
 
 def endianfun_array(o):
     '''Generate endian functions for arrays'''
-    forloop = '''\
+    output = ''
+    if o.fieldtype in ['u8', 'string', 'bool']:
+        output += '    /* a->{n} = a->{n} (no-op) */\n'.format(n=o.fieldname)
+    else:
+        lfield = f'a->{o.lengthfield}' if o.lengthfield else o.length
+        if o.fieldtype in ENDIAN_STRINGS:
+            forloop = '''\
     for (i = 0; i < {length}; i++) {{
         a->{name}[i] = {format}(a->{name}[i]);
     }}
 '''
 
-    forloop_format = '''\
-    for (i = 0; i < {length}; i++) {{
-        {type}_endian(&a->{name}[i]);
-    }}
-'''
-
-    output = ''
-    if o.fieldtype == 'u8' or o.fieldtype == 'string' or o.fieldtype == 'bool':
-        output += '    /* a->{n} = a->{n} (no-op) */\n'.format(n=o.fieldname)
-    else:
-        lfield = 'a->' + o.lengthfield if o.lengthfield else o.length
-        if o.fieldtype in ENDIAN_STRINGS:
             output += (forloop
                        .format(length=lfield,
                                format=ENDIAN_STRINGS[o.fieldtype],
                                name=o.fieldname))
         else:
+            forloop_format = '''\
+    for (i = 0; i < {length}; i++) {{
+        {type}_endian(&a->{name}[i]);
+    }}
+'''
+
             output += (forloop_format
                        .format(length=lfield, type=o.fieldtype,
                                name=o.fieldname))
@@ -1079,8 +1062,8 @@ def endianfun_obj(o):
     if o.type == 'Array':
         return endianfun_array(o)
     if o.type != 'Field':
-        output += ('    s = format(s, "\\n{} {} {} (print not implemented");\n'
-                   .format(o.type, o.fieldtype, o.fieldname))
+        output += f'    s = format(s, "\\n{o.type} {o.fieldtype} {o.fieldname} (print not implemented");\n'
+
         return output
     if o.fieldname in NO_ENDIAN_CONVERSION:
         output += '    /* a->{n} = a->{n} (no-op) */\n'.format(n=o.fieldname)
@@ -1124,11 +1107,10 @@ static inline void vl_api_{name}_t_endian (vl_api_{name}_t *a)
 '''
 
     for t in objs:
-        if t.__class__.__name__ == 'Enum' or t.__class__.__name__ == 'EnumFlag' :
+        if t.__class__.__name__ in ['Enum', 'EnumFlag']:
             output += signature.format(name=t.name)
             if t.enumtype in ENDIAN_STRINGS:
-                output += ('    *a = {}(*a);\n'
-                           .format(ENDIAN_STRINGS[t.enumtype]))
+                output += f'    *a = {ENDIAN_STRINGS[t.enumtype]}(*a);\n'
             else:
                 output += ('    /* a->{name} = a->{name} (no-op) */\n'
                            .format(name=t.name))
@@ -1147,10 +1129,9 @@ static inline void vl_api_{name}_t_endian (vl_api_{name}_t *a)
                 output += ('    /* a->{name} = a->{name} (no-op) */\n'
                            .format(name=t.name))
             elif t.alias['type'] in FORMAT_STRINGS:
-                output += ('    *a = {}(*a);\n'
-                           .format(ENDIAN_STRINGS[t.alias['type']]))
+                output += f"    *a = {ENDIAN_STRINGS[t.alias['type']]}(*a);\n"
             else:
-                output += '    /* Not Implemented yet {} */'.format(t.name)
+                output += f'    /* Not Implemented yet {t.name} */'
             output += '}\n\n'
             continue
 
@@ -1192,9 +1173,9 @@ def generate_include_enum(s, module, stream):
     if 'Define' in s:
         write('typedef enum {\n')
         for t in s['Define']:
-            write('   VL_API_{},\n'.format(t.name.upper()))
-        write('   VL_MSG_{}_LAST\n'.format(module.upper()))
-        write('}} vl_api_{}_enum_t;\n'.format(module))
+            write(f'   VL_API_{t.name.upper()},\n')
+        write(f'   VL_MSG_{module.upper()}_LAST\n')
+        write(f'}} vl_api_{module}_enum_t;\n')
 
 
 def generate_include_counters(s, stream):
@@ -1205,12 +1186,11 @@ def generate_include_counters(s, stream):
         csetname = counters.name
         write('typedef enum {\n')
         for c in counters.block:
-            write('   {}_ERROR_{},\n'
-                  .format(csetname.upper(), c['name'].upper()))
-        write('   {}_N_ERROR\n'.format(csetname.upper()))
-        write('}} vl_counter_{}_enum_t;\n'.format(csetname))
+            write(f"   {csetname.upper()}_ERROR_{c['name'].upper()},\n")
+        write(f'   {csetname.upper()}_N_ERROR\n')
+        write(f'}} vl_counter_{csetname}_enum_t;\n')
 
-        write('extern vlib_error_desc_t {}_error_counters[];\n'.format(csetname))
+        write(f'extern vlib_error_desc_t {csetname}_error_counters[];\n')
 
 
 def generate_include_types(s, module, stream):
@@ -1234,7 +1214,7 @@ def generate_include_types(s, module, stream):
         write('/* Imported API files */\n')
         for i in s['Import']:
             filename = i.filename.replace('plugins/', '')
-            write('#include <{}_types.h>\n'.format(filename))
+            write(f'#include <{filename}_types.h>\n')
 
     for o in s['types'] + s['Define']:
         tname = o.__class__.__name__
@@ -1244,7 +1224,7 @@ def generate_include_types(s, module, stream):
                       (o.alias['type'], o.name, o.alias['length']))
             else:
                 write('typedef %s vl_api_%s_t;\n' % (o.alias['type'], o.name))
-        elif tname == 'Enum' or tname == 'EnumFlag':
+        elif tname in ['Enum', 'EnumFlag']:
             if o.enumtype == 'u32':
                 write("typedef enum {\n")
             else:
@@ -1254,9 +1234,9 @@ def generate_include_types(s, module, stream):
                 write("    %s = %s,\n" % (b[0], b[1]))
             write('} vl_api_%s_t;\n' % o.name)
             if o.enumtype != 'u32':
-                size1 = 'sizeof(vl_api_%s_t)' % o.name
-                size2 = 'sizeof(%s)' % o.enumtype
-                err_str = 'size of API enum %s is wrong' % o.name
+                size1 = f'sizeof(vl_api_{o.name}_t)'
+                size2 = f'sizeof({o.enumtype})'
+                err_str = f'size of API enum {o.name} is wrong'
                 write('STATIC_ASSERT(%s == %s, "%s");\n'
                       % (size1, size2, err_str))
         else:
@@ -1276,23 +1256,17 @@ def generate_include_types(s, module, stream):
                     if b.lengthfield:
                         write("    %s %s[0];\n" % (api2c(b.fieldtype),
                                                    b.fieldname))
-                    else:
-                        # Fixed length strings decay to nul terminated u8
-                        if b.fieldtype == 'string':
-                            if b.modern_vla:
-                                write('    {} {};\n'
-                                      .format(api2c(b.fieldtype),
-                                              b.fieldname))
-                            else:
-                                write('    u8 {}[{}];\n'
-                                      .format(b.fieldname, b.length))
+                    elif b.fieldtype == 'string':
+                        if b.modern_vla:
+                            write(f'    {api2c(b.fieldtype)} {b.fieldname};\n')
                         else:
-                            write("    %s %s[%s];\n" %
-                                  (api2c(b.fieldtype), b.fieldname,
-                                   b.length))
+                            write(f'    u8 {b.fieldname}[{b.length}];\n')
+                    else:
+                        write("    %s %s[%s];\n" %
+                              (api2c(b.fieldtype), b.fieldname,
+                               b.length))
                 else:
-                    raise ValueError("Error in processing type {} for {}"
-                                     .format(b, o.name))
+                    raise ValueError(f"Error in processing type {b} for {o.name}")
 
             write('} vl_api_%s_t;\n' % o.name)
 
@@ -1375,12 +1349,12 @@ def generate_c_boilerplate(services, defines, counters, file_crc,
 
     for cnt in counters:
         csetname = cnt.name
-        write('vlib_error_desc_t {}_error_counters[] = {{\n'.format(csetname))
+        write(f'vlib_error_desc_t {csetname}_error_counters[] = {{\n')
         for c in cnt.block:
             write('  {\n')
-            write('   .name = "{}",\n'.format(c['name']))
-            write('   .desc = "{}",\n'.format(c['description']))
-            write('   .severity = {},\n'.format(severity[c['severity']]))
+            write(f"""   .name = "{c['name']}",\n""")
+            write(f"""   .desc = "{c['description']}",\n""")
+            write(f"   .severity = {severity[c['severity']]},\n")
             write('  },\n')
         write('};\n')
 
@@ -1426,7 +1400,7 @@ def generate_c_test_boilerplate(services, defines, file_crc, module, plugin,
         write('static void\n')
         write('vl_api_{n}_t_handler (vl_api_{n}_t * mp) {{\n'
               .format(n=s.reply))
-        write('   vat_main_t * vam = {}_test_main.vat_main;\n'.format(module))
+        write(f'   vat_main_t * vam = {module}_test_main.vat_main;\n')
         write('   i32 retval = ntohl(mp->retval);\n')
         write('   if (vam->async_mode) {\n')
         write('      vam->async_errors += (retval < 0);\n')
@@ -1481,8 +1455,7 @@ def generate_c_test_boilerplate(services, defines, file_crc, module, plugin,
     if plugin:
         write('clib_error_t * vat_plugin_register (vat_main_t *vam)\n')
     else:
-        write('clib_error_t * vat_{}_plugin_register (vat_main_t *vam)\n'
-              .format(module))
+        write(f'clib_error_t * vat_{module}_plugin_register (vat_main_t *vam)\n')
     write('{\n')
     write('   {n}_test_main_t * mainp = &{n}_test_main;\n'.format(n=module))
     write('   mainp->vat_main = vam;\n')
@@ -1490,8 +1463,10 @@ def generate_c_test_boilerplate(services, defines, file_crc, module, plugin,
           '                       ("{n}_{crc:08x}");\n'
           .format(n=module, crc=file_crc))
     write('   if (mainp->msg_id_base == (u16) ~0)\n')
-    write('      return clib_error_return (0, "{} plugin not loaded...");\n'
-          .format(module))
+    write(
+        f'      return clib_error_return (0, "{module} plugin not loaded...");\n'
+    )
+
     write('   setup_message_id_table (vam, mainp->msg_id_base);\n')
     write('#ifdef VL_API_LOCAL_SETUP_MESSAGE_ID_TABLE\n')
     write('    VL_API_LOCAL_SETUP_MESSAGE_ID_TABLE(vam);\n')
@@ -1514,41 +1489,65 @@ def c_test_api_service(s, dump, stream):
     '''Generate JSON code for a service.'''
     write = stream.write
 
-    req_reply_template = '''\
+    if dump:
+        if s.stream_message:
+            gets_details_reply_template = '''\
 static cJSON *
 api_{n} (cJSON *o)
 {{
-  vl_api_{n}_t *mp;
-  int len;
+    u16 msg_id = vac_get_msg_index(VL_API_{N}_CRC);
+  int len = 0;
   if (!o) return 0;
-  mp = vl_api_{n}_t_fromjson(o, &len);
+  vl_api_{n}_t *mp = vl_api_{n}_t_fromjson(o, &len);
   if (!mp) {{
     fprintf(stderr, "Failed converting JSON to API\\n");
     return 0;
   }}
+  mp->_vl_msg_id = msg_id;
 
-  mp->_vl_msg_id = vac_get_msg_index(VL_API_{N}_CRC);
   vl_api_{n}_t_endian(mp);
   vac_write((char *)mp, len);
   free(mp);
 
-  /* Read reply */
-  char *p;
-  int l;
-  vac_read(&p, &l, 5); // XXX: Fix timeout
-  if (p == 0 || l == 0) return 0;
-    // XXX Will fail in case of event received. Do loop
-  if (ntohs(*((u16 *)p)) != vac_get_msg_index(VL_API_{R}_CRC)) {{
-    fprintf(stderr, "Mismatched reply\\n");
-    return 0;
+  cJSON *reply = cJSON_CreateArray();
+
+  u16 reply_msg_id = vac_get_msg_index(VL_API_{R}_CRC);
+  u16 details_msg_id = vac_get_msg_index(VL_API_{D}_CRC);
+
+  while (1) {{
+    /* Read reply */
+    char *p;
+    int l;
+    vac_read(&p, &l, 5); // XXX: Fix timeout
+
+    /* Message can be one of [_details, control_ping_reply
+     * or unrelated event]
+     */
+    u16 msg_id = ntohs(*((u16 *)p));
+    if (msg_id == reply_msg_id) {{
+        vl_api_{r}_t *rmp = (vl_api_{r}_t *)p;
+        vl_api_{r}_t_endian(rmp);
+        cJSON_AddItemToArray(reply, vl_api_{r}_t_tojson(rmp));
+        break;
+    }}
+
+    if (msg_id == details_msg_id) {{
+        vl_api_{d}_t *rmp = (vl_api_{d}_t *)p;
+        vl_api_{d}_t_endian(rmp);
+        cJSON_AddItemToArray(reply, vl_api_{d}_t_tojson(rmp));
+    }}
   }}
-  vl_api_{r}_t *rmp = (vl_api_{r}_t *)p;
-  vl_api_{r}_t_endian(rmp);
-  return vl_api_{r}_t_tojson(rmp);
+  return reply;
 }}
 
 '''
-    dump_details_template = '''\
+
+            write(gets_details_reply_template
+                  .format(n=s.caller, r=s.reply, N=s.caller.upper(),
+                          R=s.reply.upper(), d=s.stream_message,
+                          D=s.stream_message.upper()))
+        else:
+            dump_details_template = '''\
 static cJSON *
 api_{n} (cJSON *o)
 {{
@@ -1603,68 +1602,44 @@ api_{n} (cJSON *o)
 }}
 
 '''
-    gets_details_reply_template = '''\
-static cJSON *
-api_{n} (cJSON *o)
-{{
-    u16 msg_id = vac_get_msg_index(VL_API_{N}_CRC);
-  int len = 0;
-  if (!o) return 0;
-  vl_api_{n}_t *mp = vl_api_{n}_t_fromjson(o, &len);
-  if (!mp) {{
-    fprintf(stderr, "Failed converting JSON to API\\n");
-    return 0;
-  }}
-  mp->_vl_msg_id = msg_id;
-
-  vl_api_{n}_t_endian(mp);
-  vac_write((char *)mp, len);
-  free(mp);
-
-  cJSON *reply = cJSON_CreateArray();
-
-  u16 reply_msg_id = vac_get_msg_index(VL_API_{R}_CRC);
-  u16 details_msg_id = vac_get_msg_index(VL_API_{D}_CRC);
-
-  while (1) {{
-    /* Read reply */
-    char *p;
-    int l;
-    vac_read(&p, &l, 5); // XXX: Fix timeout
-
-    /* Message can be one of [_details, control_ping_reply
-     * or unrelated event]
-     */
-    u16 msg_id = ntohs(*((u16 *)p));
-    if (msg_id == reply_msg_id) {{
-        vl_api_{r}_t *rmp = (vl_api_{r}_t *)p;
-        vl_api_{r}_t_endian(rmp);
-        cJSON_AddItemToArray(reply, vl_api_{r}_t_tojson(rmp));
-        break;
-    }}
-
-    if (msg_id == details_msg_id) {{
-        vl_api_{d}_t *rmp = (vl_api_{d}_t *)p;
-        vl_api_{d}_t_endian(rmp);
-        cJSON_AddItemToArray(reply, vl_api_{d}_t_tojson(rmp));
-    }}
-  }}
-  return reply;
-}}
-
-'''
-
-    if dump:
-        if s.stream_message:
-            write(gets_details_reply_template
-                  .format(n=s.caller, r=s.reply, N=s.caller.upper(),
-                          R=s.reply.upper(), d=s.stream_message,
-                          D=s.stream_message.upper()))
-        else:
             write(dump_details_template.format(n=s.caller, r=s.reply,
                                                N=s.caller.upper(),
                                                R=s.reply.upper()))
     else:
+        req_reply_template = '''\
+static cJSON *
+api_{n} (cJSON *o)
+{{
+  vl_api_{n}_t *mp;
+  int len;
+  if (!o) return 0;
+  mp = vl_api_{n}_t_fromjson(o, &len);
+  if (!mp) {{
+    fprintf(stderr, "Failed converting JSON to API\\n");
+    return 0;
+  }}
+
+  mp->_vl_msg_id = vac_get_msg_index(VL_API_{N}_CRC);
+  vl_api_{n}_t_endian(mp);
+  vac_write((char *)mp, len);
+  free(mp);
+
+  /* Read reply */
+  char *p;
+  int l;
+  vac_read(&p, &l, 5); // XXX: Fix timeout
+  if (p == 0 || l == 0) return 0;
+    // XXX Will fail in case of event received. Do loop
+  if (ntohs(*((u16 *)p)) != vac_get_msg_index(VL_API_{R}_CRC)) {{
+    fprintf(stderr, "Mismatched reply\\n");
+    return 0;
+  }}
+  vl_api_{r}_t *rmp = (vl_api_{r}_t *)p;
+  vl_api_{r}_t_endian(rmp);
+  return vl_api_{r}_t_tojson(rmp);
+}}
+
+'''
         write(req_reply_template.format(n=s.caller, r=s.reply,
                                         N=s.caller.upper(),
                                         R=s.reply.upper()))
@@ -1742,16 +1717,17 @@ def run(args, apifilename, s):
     basename = os.path.basename(apifilename)
     filename, _ = os.path.splitext(basename)
     modulename = filename.replace('.', '_')
-    filename_enum = os.path.join(args.outputdir + '/' + basename + '_enum.h')
-    filename_types = os.path.join(args.outputdir + '/' + basename + '_types.h')
-    filename_c = os.path.join(args.outputdir + '/' + basename + '.c')
-    filename_c_test = os.path.join(args.outputdir + '/' + basename + '_test.c')
-    filename_c_test2 = (os.path.join(args.outputdir + '/' + basename +
-                                     '_test2.c'))
+    filename_enum = os.path.join(f'{args.outputdir}/{basename}_enum.h')
+    filename_types = os.path.join(f'{args.outputdir}/{basename}_types.h')
+    filename_c = os.path.join(f'{args.outputdir}/{basename}.c')
+    filename_c_test = os.path.join(f'{args.outputdir}/{basename}_test.c')
+    filename_c_test2 = os.path.join((f'{args.outputdir}/{basename}' + '_test2.c'))
     filename_c_tojson = (os.path.join(args.outputdir +
                                       '/' + basename + '_tojson.h'))
-    filename_c_fromjson = (os.path.join(args.outputdir + '/' +
-                                        basename + '_fromjson.h'))
+    filename_c_fromjson = os.path.join(
+        ((f'{args.outputdir}/' + basename) + '_fromjson.h')
+    )
+
 
     # Generate separate types file
     st = StringIO()
@@ -1763,8 +1739,8 @@ def run(args, apifilename, s):
 
     # Generate separate enum file
     st = StringIO()
-    st.write('#ifndef included_{}_api_enum_h\n'.format(modulename))
-    st.write('#define included_{}_api_enum_h\n'.format(modulename))
+    st.write(f'#ifndef included_{modulename}_api_enum_h\n')
+    st.write(f'#define included_{modulename}_api_enum_h\n')
     generate_include_enum(s, modulename, st)
     generate_include_counters(s['Counters'], st)
     st.write('#endif\n')
@@ -1784,7 +1760,7 @@ def run(args, apifilename, s):
 
     # Generate separate C test file
     st = StringIO()
-    plugin = bool('plugin' in apifilename)
+    plugin = 'plugin' in apifilename
     generate_c_test_boilerplate(s['Service'], s['Define'],
                                 s['file_crc'],
                                 modulename, plugin, st)

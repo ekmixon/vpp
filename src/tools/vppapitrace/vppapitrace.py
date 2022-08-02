@@ -71,13 +71,13 @@ def serialize_cstring(s):
     bstring = s.encode('utf8')
     l = len(bstring)
     b = serialize_likely_small_unsigned_integer(l)
-    b += struct.pack('{}s'.format(l), bstring)
+    b += struct.pack(f'{l}s', bstring)
     return b
 
 
 def unserialize_cstring(data, offset):
     l, size = unserialize_likely_small_unsigned_integer(data, offset)
-    name = struct.unpack_from('{}s'.format(l), data, offset+size)[0]
+    name = struct.unpack_from(f'{l}s', data, offset+size)[0]
     return name.decode('utf8'), size + len(name)
 
 
@@ -108,7 +108,7 @@ def serialize_msgtbl(messages):
     data = struct.pack(">I", nmsg)
 
     for k, v in messages.items():
-        name = k + '_' + v.crc[2:]
+        name = f'{k}_{v.crc[2:]}'
         data += serialize_likely_small_unsigned_integer(v._vl_msg_id)
         data += serialize_cstring(name)
     return data
@@ -121,8 +121,10 @@ def apitrace2json(messages, filename):
         # Read header
         (nitems, msgtbl_size, wrapped) = struct.unpack_from(">IIB",
                                                             bytes_read, 0)
-        logging.debug('nitems: {} message table size: {} wrapped: {}'
-                      .format(nitems, msgtbl_size, wrapped))
+        logging.debug(
+            f'nitems: {nitems} message table size: {msgtbl_size} wrapped: {wrapped}'
+        )
+
         if wrapped:
             sys.stdout.write('Wrapped/incomplete trace, results may vary')
         offset = 9
@@ -141,9 +143,8 @@ def apitrace2json(messages, filename):
             name = msgtbl_by_id[msgid]
             n = name[:name.rfind("_")]
             msgobj = messages[n]
-            if n + '_' + msgobj.crc[2:] != name:
-                sys.exit("CRC Mismatch between JSON API definition "
-                         "and trace. {}".format(name))
+            if f'{n}_{msgobj.crc[2:]}' != name:
+                sys.exit(f"CRC Mismatch between JSON API definition and trace. {name}")
 
             x, s = msgobj.unpack(bytes_read[offset:offset+size])
             msgname = type(x).__name__
@@ -219,7 +220,7 @@ def vpp_encoder(obj):
         return str(obj)
     if type(obj) is bytes:
         return "base64:" + base64.b64encode(obj).decode('ascii')
-    raise TypeError('Unknown object {} {}\n'.format(type(obj), obj))
+    raise TypeError(f'Unknown object {type(obj)} {obj}\n')
 
 message_filter = {
     'control_ping',
@@ -246,10 +247,10 @@ vpp.connect(name='vppapitrace')
 
     for m in messages:
         if m['name'] not in services:
-            s += '# ignoring reply message: {}\n'.format(m['name'])
+            s += f"# ignoring reply message: {m['name']}\n"
             continue
         if m['name'] in message_filter:
-            s += '# ignoring message {}\n'.format(m['name'])
+            s += f"# ignoring message {m['name']}\n"
             continue
         for k in argument_filter:
             try:
@@ -257,7 +258,7 @@ vpp.connect(name='vppapitrace')
             except KeyError:
                 pass
         a = pp.pformat(m['args'])
-        s += 'rv = vpp.api.{}(**{})\n'.format(m['name'], a)
+        s += f"rv = vpp.api.{m['name']}(**{a})\n"
         s += 'print("RV:", rv)\n'
     s += 'vpp.disconnect()\n'
 
@@ -270,23 +271,23 @@ def todump_items(k, v, level):
     s = ''
     if type(v) is dict:
         if k:
-            s += '   ' * level + '{}:\n'.format(k)
+            s += '   ' * level + f'{k}:\n'
         for k2, v2 in v.items():
             s += todump_items(k2, v2, level + 1)
         return s
 
     if type(v) is list:
         for v2 in v:
-            s += '{}'.format(todump_items(k, v2, level))
+            s += f'{todump_items(k, v2, level)}'
         return s
 
     if type(v) is bytes:
         w = wrapper.fill(bytes.hex(v))
-        s += '   ' * level + '{}: {}\n'.format(k, w)
+        s += '   ' * level + f'{k}: {w}\n'
     else:
         if type(v) is str:
             v = wrapper.fill(v)
-        s += '   ' * level + '{}: {}\n'.format(k, v)
+        s += '   ' * level + f'{k}: {v}\n'
     return s
 
 
@@ -297,7 +298,7 @@ def todump(messages, services):
     s = ''
     for m in messages:
         if m['name'] not in services:
-            s += '# ignoring reply message: {}\n'.format(m['name'])
+            s += f"# ignoring reply message: {m['name']}\n"
             continue
         #if m['name'] in message_filter:
         #    s += '# ignoring message {}\n'.format(m['name'])
@@ -308,7 +309,7 @@ def todump(messages, services):
             except KeyError:
                 pass
         a = pp.pformat(m['args'])
-        s += '{}:\n'.format(m['name'])
+        s += f"{m['name']}:\n"
         s += todump_items(None, m['args'], 0)
     return s
 
@@ -321,8 +322,8 @@ def init_api(apidir):
     for file in apifiles:
         with open(file) as apidef_file:
             m, s = VPPApiJSONFiles.process_json_file(apidef_file)
-            messages.update(m)
-            services.update(s)
+            messages |= m
+            services |= s
     return messages, services
 
 
@@ -341,7 +342,7 @@ def replaymsgs(vpp, msgs):
             m['args']['context'] = 1
         f = vpp.get_function(name)
         rv = f(**m['args'])
-        print('RV {}'.format(rv))
+        print(f'RV {rv}')
 
 
 def replay(args):
@@ -385,32 +386,28 @@ def generate(args):
 
     if args.todump:
         output_type = DUMP
+    elif file_extension == '.json' or filename == '-':
+        output_type = JSON
+    elif file_extension == '.py':
+        output_type = PYTHON
     else:
-        if file_extension == '.json' or filename == '-':
-            output_type = JSON
-        elif file_extension == '.py':
-            output_type = PYTHON
-        else:
-            output_type = APITRACE
+        output_type = APITRACE
 
     if input_type == output_type:
         sys.exit("error: Nothing to convert between")
 
     if input_type != JSON and output_type == APITRACE:
-        sys.exit("error: Input file must be JSON file: {}".format(args.input))
+        sys.exit(f"error: Input file must be JSON file: {args.input}")
 
     messages, services = init_api(args.apidir)
 
     if input_type == JSON and output_type == APITRACE:
-        i = 0
-        for k, v in messages.items():
+        for i, (k, v) in enumerate(messages.items()):
             v._vl_msg_id = i
-            i += 1
-
         n, result = json2apitrace(messages, args.input)
         msgtbl = serialize_msgtbl(messages)
 
-        print('API messages: {}'.format(n))
+        print(f'API messages: {n}')
         header = struct.pack(">IIB", n, len(msgtbl), 0)
 
         with open(args.output, 'wb') as outfile:
@@ -438,13 +435,12 @@ def generate(args):
             x = json.load(file, object_hook=vpp_decode)
             s = topython(x, services)
     else:
-        sys.exit('Input file must be API trace file: {}'.format(args.input))
+        sys.exit(f'Input file must be API trace file: {args.input}')
 
     if args.output == '-':
         sys.stdout.write(s + '\n')
     else:
-        print('Generating {} from API trace: {}'
-              .format(args.output, args.input))
+        print(f'Generating {args.output} from API trace: {args.input}')
         with open(args.output, 'w') as outfile:
             outfile.write(s)
 

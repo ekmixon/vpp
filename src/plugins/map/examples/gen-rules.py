@@ -42,19 +42,45 @@ args = parser.parse_args()
 # Print domain
 #
 def domain_print(i, ip4_pfx, ip6_pfx, ip6_src, eabits_len, psid_offset, psid_len):
-    if format == 'vpp':
-        print("map add domain ip4-pfx " + ip4_pfx + " ip6-pfx", ip6_pfx, "ip6-src " + ip6_src +
-              " ea-bits-len", eabits_len, "psid-offset", psid_offset, "psid-len", psid_len)
     if format == 'confd':
-        print("vpp softwire softwire-instances softwire-instance", i, "br-ipv6 " + ip6_src +
-              " ipv6-prefix " + ip6_pfx + " ipv4-prefix " + ip4_pfx +
-              " ea-bits-len", eabits_len, "psid-offset", psid_offset, "psid-len", psid_len)
-    if format == 'xml':
+        print(
+            "vpp softwire softwire-instances softwire-instance",
+            i,
+            (
+                (
+                    (
+                        ((f"br-ipv6 {ip6_src}" + " ipv6-prefix ") + ip6_pfx)
+                        + " ipv4-prefix "
+                    )
+                    + ip4_pfx
+                )
+                + " ea-bits-len"
+            ),
+            eabits_len,
+            "psid-offset",
+            psid_offset,
+            "psid-len",
+            psid_len,
+        )
+
+    elif format == 'vpp':
+        print(
+            f"map add domain ip4-pfx {ip4_pfx} ip6-pfx",
+            ip6_pfx,
+            (f"ip6-src {ip6_src}" + " ea-bits-len"),
+            eabits_len,
+            "psid-offset",
+            psid_offset,
+            "psid-len",
+            psid_len,
+        )
+
+    elif format == 'xml':
         print("<softwire-instance>")
         print("<id>", i, "</id>");
-        print("  <br-ipv6>" + ip6_src + "</br-ipv6>")
-        print("  <ipv6-prefix>" + ip6_pfx + "</ipv6-prefix>")
-        print("  <ipv4-prefix>" + ip4_pfx + "</ipv4-prefix>")
+        print(f"  <br-ipv6>{ip6_src}</br-ipv6>")
+        print(f"  <ipv6-prefix>{ip6_pfx}</ipv6-prefix>")
+        print(f"  <ipv4-prefix>{ip4_pfx}</ipv4-prefix>")
         print("  <ea-len>", eabits_len, "</ea-len>")
         print("  <psid-len>", psid_len, "</psid-len>")
         print("  <psid-offset>", psid_offset, "</psid-offset>")
@@ -64,11 +90,11 @@ def domain_print_end():
         print("</softwire-instance>")
 
 def rule_print(i, psid, dst):
-    if format == 'vpp':
-        print("map add rule index", i, "psid", psid, "ip6-dst", dst)
     if format == 'confd':
         print("binding", psid, "ipv6-addr", dst)
-    if format == 'xml':
+    elif format == 'vpp':
+        print("map add rule index", i, "psid", psid, "ip6-dst", dst)
+    elif format == 'xml':
         print("  <binding>")
         print("    <psid>", psid, "</psid>")
         print("    <ipv6-addr>", dst, "</ipv6-addr>")
@@ -92,7 +118,16 @@ def lw46(ip4_pfx_str, ip6_pfx_str, ip6_src_str, ea_bits_len, psid_offset, psid_l
     mod = ip4_pfx.num_addresses / 1024
 
     for i in range(ip4_pfx.num_addresses):
-        domain_print(i, str(ip4_pfx[i]) + "/32", str(ip6_dst[i]) + "/128", str(ip6_src), 0, 0, 0)
+        domain_print(
+            i,
+            f"{str(ip4_pfx[i])}/32",
+            f"{str(ip6_dst[i])}/128",
+            str(ip6_src),
+            0,
+            0,
+            0,
+        )
+
         domain_print_end()
         if ip6_src_ecmp and not i % mod:
             ip6_src = ip6_src + 1
@@ -107,7 +142,7 @@ def lw46_shared(ip4_pfx_str, ip6_pfx_str, ip6_src_str, ea_bits_len, psid_offset,
     mod = ip4_pfx.num_addresses / 1024
 
     for i in range(ip4_pfx.num_addresses):
-        domain_print(i, str(ip4_pfx[i]) + "/32", "::/0", str(ip6_src), 0, 0, psid_len)
+        domain_print(i, f"{str(ip4_pfx[i])}/32", "::/0", str(ip6_src), 0, 0, psid_len)
         for psid in range(0x1 << int(psid_len)):
             rule_print(i, psid, str(ip6_dst[(i * (0x1<<int(psid_len))) + psid]))
         domain_print_end()
@@ -125,7 +160,7 @@ def lw46_shared_b(ip4_pfx_str, ip6_pfx_str, ip6_src_str, ea_bits_len, psid_offse
     mod = ip4_pfx.num_addresses / 1024
 
     for i in range(ip4_pfx.num_addresses):
-        domain_print(i, str(ip4_pfx[i]) + "/32", "::/0", str(ip6_src), 0, 0, psid_len)
+        domain_print(i, f"{str(ip4_pfx[i])}/32", "::/0", str(ip6_src), 0, 0, psid_len)
         for psid in range(0x1 << psid_len):
             enduserprefix = list(ip6_dst.pop(0).subnets(new_prefix=64))[255-1]
             rule_print(i, psid, enduserprefix[(i * (0x1<<psid_len)) + psid])

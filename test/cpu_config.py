@@ -17,5 +17,4 @@ else:
     if max_vpp_cpus <= 0:
         raise ValueError("Invalid MAX_VPP_CPUS value specified, valid "
                          "values are a positive integer or 'auto'")
-    if max_vpp_cpus > num_cpus:
-        max_vpp_cpus = num_cpus
+    max_vpp_cpus = min(max_vpp_cpus, num_cpus)

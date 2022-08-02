@@ -136,8 +136,7 @@ class VPPStats():
 
         self.size = stat_result.st_size
         if self.version != 2:
-            raise Exception('Incompatbile stat segment version {}'
-                            .format(self.version))
+            raise Exception(f'Incompatbile stat segment version {self.version}')
 
         self.refresh()
         self.connected = True
@@ -197,9 +196,11 @@ class VPPStats():
                     self.directory_by_idx = directory_by_idx
 
                     # Cache the error index vectors
-                    self.error_vectors = []
-                    for threads in StatsVector(self, self.error_vector, 'P'):
-                        self.error_vectors.append(StatsVector(self, threads[0], 'Q'))
+                    self.error_vectors = [
+                        StatsVector(self, threads[0], 'Q')
+                        for threads in StatsVector(self, self.error_vector, 'P')
+                    ]
+
                     return
             except IOError:
                 if not blocking:
@@ -234,11 +235,10 @@ class VPPStats():
                     self.refresh(blocking)
                 with self.lock:
                     for k, entry in errors.items():
-                        total = 0
                         i = entry.value
-                        for per_thread in self.error_vectors:
-                            total += per_thread[i]
-                        if total:
+                        if total := sum(
+                            per_thread[i] for per_thread in self.error_vectors
+                        ):
                             result[k] = total
                     return result
             except IOError:
@@ -249,8 +249,11 @@ class VPPStats():
         '''Return all errors counters > 0 pretty printed'''
         error_string = ['ERRORS:']
         error_counters = self.set_errors(blocking)
-        for k in sorted(error_counters):
-            error_string.append('{:<60}{:>10}'.format(k, error_counters[k]))
+        error_string.extend(
+            '{:<60}{:>10}'.format(k, error_counters[k])
+            for k in sorted(error_counters)
+        )
+
         return '%s\n' % '\n'.join(error_string)
 
     def get_counter(self, name, blocking=True):
@@ -287,10 +290,7 @@ class VPPStats():
         '''Given a list of counters return a dictionary of results'''
         if not self.connected:
             self.connect()
-        result = {}
-        for cnt in counters:
-            result[cnt] = self.__getitem__(cnt,blocking)
-        return result
+        return {cnt: self.__getitem__(cnt,blocking) for cnt in counters}
 
 class StatsLock():
     '''Stat segment optimistic locking'''
@@ -315,9 +315,8 @@ class StatsLock():
         while self.stats.in_progress:
             if not blocking:
                 time.sleep(0.01)
-                if timeout > 0:
-                    if start + time.monotonic() > timeout:
-                        return False
+                if timeout > 0 and start + time.monotonic() > timeout:
+                    return False
         return True
 
     def release(self):
@@ -445,11 +444,11 @@ class StatsEntry():
 
     def name(self, stats):
         '''Name counter'''
-        counter = []
-        for name in StatsVector(stats, self.value, 'P'):
-            if name[0]:
-                counter.append(get_string(stats, name[0]))
-        return counter
+        return [
+            get_string(stats, name[0])
+            for name in StatsVector(stats, self.value, 'P')
+            if name[0]
+        ]
 
     SYMLINK_FMT1 = Struct('II')
     SYMLINK_FMT2 = Struct('Q')

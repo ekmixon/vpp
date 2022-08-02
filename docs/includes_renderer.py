@@ -39,7 +39,7 @@ class PluginRenderer(ContentRenderer):
 
     def render(self):
         with open(f"{self.__class__.output_dir}{self.__class__.name}",
-                  "w") as output:
+                      "w") as output:
             with os.scandir(self.__class__.plugin_dir) as pdir:
                 for entry in sorted(pdir, key=lambda entry: entry.name):
                     if not entry.name.startswith('.') and entry.is_dir():
@@ -52,10 +52,10 @@ class PluginRenderer(ContentRenderer):
                                             recursive=True):
                             if f.endswith('.c'):
                                 with open(f, "r", encoding="utf-8") \
-                                        as src:
+                                                                        as src:
                                     for match in self.__class__.regex.finditer(
                                             src.read()):
-                                        description = "%s" % (match.group(1))
+                                        description = f"{match.group(1)}"
 
                         output.write(f"* {entry.name} - {description}\n")
 

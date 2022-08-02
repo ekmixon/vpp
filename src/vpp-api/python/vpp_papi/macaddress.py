@@ -26,7 +26,7 @@ def mac_ntop(binary):
     '''Convert MAC address as binary to text'''
     x = b':'.join(binascii.hexlify(binary)[i:i + 2]
                   for i in range(0, 12, 2))
-    return str(x.decode('ascii'))
+    return x.decode('ascii')
 
 
 class MACAddress():
@@ -51,7 +51,7 @@ class MACAddress():
         return self.mac_string
 
     def __repr__(self):
-        return '%s(%s)' % (self.__class__.__name__, self.mac_string)
+        return f'{self.__class__.__name__}({self.mac_string})'
 
     def __eq__(self, other):
 

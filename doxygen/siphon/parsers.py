@@ -14,7 +14,7 @@ import html
 import pyparsing as pp
 
 # Some useful primitives
-ident = pp.Word(pp.alphas + "_", pp.alphas + pp.nums + "_")
+ident = pp.Word(f"{pp.alphas}_", pp.alphas + pp.nums + "_")
 intNum = pp.Word(pp.nums)
 hexNum = pp.Literal("0x") + pp.Word(pp.hexnums)
 octalNum = pp.Literal("0") + pp.Word("01234567")
@@ -44,8 +44,10 @@ typeCast = pp.Combine( "(" + ( typeSpec | typeName ) + ")" ).suppress()
 string = pp.Combine(pp.OneOrMore(pp.QuotedString(quoteChar='"',
     escChar='\\', multiline=True)), adjacent=False)
 literal = pp.Optional(typeCast) + (integer | floatNum | char | string)
-var = pp.Combine(pp.Optional(typeCast) + varName +
-    pp.Optional("[" + arrayIndex + "]"))
+var = pp.Combine(
+    (pp.Optional(typeCast) + varName + pp.Optional(f"[{arrayIndex}]"))
+)
+
 
 # This could be more complete, but suffices for our uses
 expr = (literal | var)
@@ -81,13 +83,11 @@ class ParserFunctionMacro(Parser):
         return macroName + macroParams
 
     def item(self, item):
-        r = {
+        return {
             "macro": item[0],
             "name": item[1][1],
             "function": item[1][0],
         }
-
-        return r
 
 
 """Parser for function-like macros with a closing semi-colon."""
@@ -116,13 +116,15 @@ class MacroInitializer(ParserFunctionMacro):
         cs = pp.Forward()
 
 
-        member = pp.Combine(dot + varName + pp.Optional("[" + arrayIndex + "]"),
-            adjacent=False)
+        member = pp.Combine(
+            dot + varName + pp.Optional(f"[{arrayIndex}]"), adjacent=False
+        )
+
         value = (expr | cs)
 
         entry = pp.Group(pp.Optional(member + equals, default="") + value)
         entries = (pp.ZeroOrMore(entry + comma) + entry + pp.Optional(comma)) | \
-                  (pp.ZeroOrMore(entry + comma))
+                      (pp.ZeroOrMore(entry + comma))
 
         cs << (lbrace + entries + rbrace)
 
